@@ -1500,16 +1500,17 @@ function updatePlay(dt) {
     }
   }
 
-  // TROPHY UPDATE — magnetic flight toward head, chain-collect on arrival
+  // TROPHY UPDATE — settle phase (radiate in place), then magnetic flight to head
   for (let i = trophies.length - 1; i >= 0; i--) {
     const t = trophies[i];
     t.age += dt;
+    t.settleT -= dt;
 
     const dx = head.x - t.x;
     const dy = head.y - t.y;
     const dist = Math.hypot(dx, dy);
 
-    // Collection threshold (slightly generous so chains feel reliable)
+    // Collection threshold
     const collectDist = 16 * SCALE;
     if (dist < collectDist || t.life <= 0) {
       collectTrophy(t);
@@ -1517,27 +1518,37 @@ function updatePlay(dt) {
       continue;
     }
 
-    // Magnetic attraction: acceleration ramps up with age so collection is guaranteed within ~0.8s
-    if (dist > 0.5) {
-      const accelBase = 2400 * t.magnetStrength;
-      const accelRamp = 1 + t.age * 2.6;
-      const accel = accelBase * accelRamp;
-      t.vx += (dx / dist) * accel * dt;
-      t.vy += (dy / dist) * accel * dt;
+    if (t.settleT > 0) {
+      // Settle phase: trophy hangs in place, decelerating any residual launch velocity
+      // so the radiating-gold moment is clearly visible before it launches
+      const damp = Math.pow(0.04, dt);
+      t.vx *= damp;
+      t.vy *= damp;
+    } else {
+      // Magnetic flight phase: acceleration ramps up over time so collection is guaranteed
+      if (dist > 0.5) {
+        const flightAge = t.age - 0.25;             // time since magnetism activated
+        const accelBase = 2400 * t.magnetStrength;
+        const accelRamp = 1 + flightAge * 2.6;
+        const accel = accelBase * accelRamp;
+        t.vx += (dx / dist) * accel * dt;
+        t.vy += (dy / dist) * accel * dt;
+      }
+      const damp = Math.pow(0.25, dt);
+      t.vx *= damp;
+      t.vy *= damp;
     }
-    // Light damping prevents wild oscillation if head darts away
-    const damp = Math.pow(0.25, dt);
-    t.vx *= damp;
-    t.vy *= damp;
 
     t.x += t.vx * dt;
     t.y += t.vy * dt;
     t.rot += t.vrot * dt;
 
-    // Trail: record current position with short lifetime
-    t.trail.push({ x: t.x, y: t.y, life: 0.28 });
-    for (const tp of t.trail) tp.life -= dt;
-    while (t.trail.length > 0 && t.trail[0].life <= 0) t.trail.shift();
+    // Trail (only during flight phase, not while settling)
+    if (t.settleT <= 0) {
+      t.trail.push({ x: t.x, y: t.y, life: 0.28 });
+      for (const tp of t.trail) tp.life -= dt;
+      while (t.trail.length > 0 && t.trail[0].life <= 0) t.trail.shift();
+    }
 
     t.life -= dt;
   }
@@ -1629,82 +1640,79 @@ function collectOrb(o) {
   refreshComboUI();
 }
 
-// CLOSE A LOOP: convert objects inside into magnetic trophies that fly to the head.
-// The closure moment itself is the cinematic beat; the trophies chain in as bright bells.
+// CLOSE A LOOP: ONLY stars (blades) inside the polygon are captured.
+// Loops with no stars inside have no effect beyond the thread truncating — silent failure.
+// This makes looping a deliberate, situational gesture: the answer to enemy density.
 function closeLoop(poly, area, inter, segIdx) {
-  let captured = 0;
+  // Pre-scan: collect only star (blade) objects inside the polygon
+  const capturedStars = [];
+  for (const o of objects) {
+    if (o.consumed) continue;
+    if (o.type !== T_BLADE) continue;          // ONLY stars
+    if (!pointInPoly(o.x, o.y, poly)) continue;
+    capturedStars.push(o);
+  }
+
+  // Truncate the thread regardless — the encircling portion is consumed by the crossover.
+  // This is the natural cost of crossing your own line.
+  const newThread = [];
+  for (let k = 0; k <= segIdx; k++) {
+    newThread.push(thread[k]);
+  }
+  newThread.push({ x: inter.x, y: inter.y });
+  thread = newThread;
+  threadLen = Math.max(LEN_MIN + 6, threadLen - 5);
+
+  // If no stars captured: silent. No flash, no popup, no audio, no points. End here.
+  if (capturedStars.length === 0) {
+    totalLoops++;        // still counts as a loop attempt for stats
+    return;
+  }
 
   // Centroid of polygon (for closure popup + audio pitch)
   let cx = 0, cy = 0;
   for (const p of poly) { cx += p.x; cy += p.y; }
   cx /= poly.length; cy /= poly.length;
 
-  // Convert objects inside the polygon → trophies launched from each origin
-  for (const o of objects) {
-    if (o.consumed) continue;
-    if (!pointInPoly(o.x, o.y, poly)) continue;
-
-    let value, typeName;
-    if (o.type === T_BLADE) {
-      value = 120;
-      typeName = 'blade';
-    } else if (o.type === T_RING) {
-      value = 90;
-      typeName = 'ring';
-    } else if (o.type === T_ORB) {
-      // Ripe orbs are worth more
-      value = Math.floor(48 + (o.ripeness || 0) * 38);
-      typeName = 'orb';
-    } else {
-      continue;
-    }
-
+  // Transform each star into a radiating gold trophy
+  for (const o of capturedStars) {
+    let value = 120;
     if (resonance) value = Math.floor(value * 2);
 
-    // Initial velocity: random upward/outward burst, will be overridden by magnetic acceleration
-    const launchAngle = Math.atan2(o.y - cy, o.x - cx) + rand(-0.4, 0.4);
-    const launchSpd = 80 + Math.random() * 100;
+    // Initial velocity: gentle drift outward (settle phase prevents this from dominating)
+    const launchAngle = Math.atan2(o.y - cy, o.x - cx) + rand(-0.3, 0.3);
+    const launchSpd = 30 + Math.random() * 50;
     trophies.push({
       x: o.x, y: o.y,
-      vx: Math.cos(launchAngle) * launchSpd + rand(-20, 20),
-      vy: Math.sin(launchAngle) * launchSpd - 40,   // bias slightly upward
+      vx: Math.cos(launchAngle) * launchSpd + rand(-15, 15),
+      vy: Math.sin(launchAngle) * launchSpd - 20,
       hue: 50,
       rot: Math.random() * 6.28,
-      vrot: rand(-5, 5),
-      life: 1.6,
+      vrot: rand(-2.2, 2.2),
+      life: 2.0,
       value,
       age: 0,
-      type: typeName,
+      settleT: 0.25,                                  // 0.25s in place, radiating, before magnetic flight
       trail: [],
-      // Random magnetic strength → some trophies are "lazier," staggering arrivals
       magnetStrength: 0.65 + Math.random() * 0.7,
     });
 
-    // Small "extraction" burst at origin (visual that the object was converted, not just deleted)
-    burst(o.x, o.y, 50, 12, 200, 0.5);
-    wave(o.x, o.y, 50, 4, 32, 0.4);
+    // Transformation burst at the star's location — gold extraction visual
+    burst(o.x, o.y, 50, 16, 240, 0.6);
+    wave(o.x, o.y, 50, 5, 42, 0.5);
 
     o.consumed = true;
-    captured++;
   }
+
+  const captured = capturedStars.length;
 
   // Closure popup
   let labelText;
-  let popColor;
-  if (captured > 1) { labelText = '◯ LOOP × ' + captured; popColor = '#ffffff'; }
-  else if (captured === 1) { labelText = '◯ LOOP'; popColor = '#ffffff'; }
-  else { labelText = '◯ EMPTY LOOP'; popColor = '#ffd76b'; }
-  popup(cx, cy, labelText, popColor);
+  if (captured > 1) labelText = '★ CAPTURED × ' + captured;
+  else labelText = '★ CAPTURED';
+  popup(cx, cy, labelText, '#ffffff');
 
-  // Empty-loop gets a flat consolation score so it still feels meaningful
-  if (captured === 0) {
-    const pts = 15;
-    score += pts;
-    popup(cx, cy + 26, '+' + pts, '#ffd76b');
-  }
-  // (when captured > 0, points come from the trophy chain, not a single popup)
-
-  // Sound + haptic for the closure itself
+  // Sound + haptic
   sfxLoop(cy / H, captured, resonance);
   vibrate([8, 12, 28]);
 
@@ -1717,38 +1725,27 @@ function closeLoop(poly, area, inter, segIdx) {
     isResonance: resonance,
   });
 
-  // Truncate the thread: the encircling portion is consumed by the loop.
-  const newThread = [];
-  for (let k = 0; k <= segIdx; k++) {
-    newThread.push(thread[k]);
-  }
-  newThread.push({ x: inter.x, y: inter.y });
-  thread = newThread;
-
-  // Slight thread length cost (loops cost some line, but big captures refill it via trophies)
-  threadLen = Math.max(LEN_MIN + 6, threadLen - 5);
-
   glow = 1;
-  shake = Math.max(shake, captured > 0 ? 6 : 3);
+  shake = Math.max(shake, 6);
   totalLoops++;
 }
 
 // COLLECT A TROPHY: chain note + small burst + combo bump
 function collectTrophy(t) {
   combo++;
-  comboT = 3.5;  // long combo window so the whole chain holds together
+  comboT = 3.5;
   maxCombo = Math.max(maxCombo, combo);
   const mult = 1 + Math.floor(combo / 3);
   const pts = t.value * mult;
   score += pts;
-  threadLen = clamp(threadLen + (t.type === 'blade' ? 6 : 4), 0, LEN_MAX);
+  threadLen = clamp(threadLen + 8, 0, LEN_MAX);
   glow = Math.min(1, glow + 0.35);
 
-  burst(t.x, t.y, 50, 10, 180, 0.45);
+  burst(t.x, t.y, 50, 12, 220, 0.55);
   popup(t.x, t.y - 6, '+' + pts, '#ffd76b');
 
   sfxTrophy(combo, t.y / H);
-  vibrate(4);
+  vibrate(6);
   refreshComboUI();
 }
 
@@ -2195,14 +2192,17 @@ function drawTrophy(t) {
   const dx = head.x - t.x;
   const dy = head.y - t.y;
   const dist = Math.hypot(dx, dy);
-  // Brightness intensifies as it nears the head (anticipating collection)
-  const proximity = 1 - clamp(dist / 200, 0, 1);
 
-  // Trail (faded gold streaks behind the trophy)
+  // Settle phase = bigger radiating presence; flight phase = compact comet
+  const settling = t.settleT > 0;
+  const settleProg = settling ? clamp(1 - (t.settleT / 0.25), 0, 1) : 1;
+  const proximity = 1 - clamp(dist / 220, 0, 1);
+
+  // Trail (only during flight)
   for (let i = 0; i < t.trail.length; i++) {
     const tp = t.trail[i];
     const a = clamp(tp.life / 0.28, 0, 1);
-    const r = (3.5 * SCALE) * a;
+    const r = (4 * SCALE) * a;
     ctx.fillStyle = `hsla(50, 100%, 80%, ${a * 0.55})`;
     ctx.beginPath();
     ctx.arc(tp.x, tp.y, r, 0, 6.283);
@@ -2211,39 +2211,73 @@ function drawTrophy(t) {
 
   ctx.save();
   ctx.translate(t.x, t.y);
-  ctx.rotate(t.rot);
 
-  // Outer glow halo
-  const haloR = (22 + proximity * 10) * SCALE;
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
-  g.addColorStop(0, `rgba(255, 240, 180, ${0.85 + proximity * 0.15})`);
-  g.addColorStop(0.4, 'rgba(255, 215, 107, 0.45)');
-  g.addColorStop(1, 'rgba(255, 215, 107, 0)');
-  ctx.fillStyle = g;
+  // Pulsing factor — strong during settle (the "radiating gold" beat), gentle during flight
+  const pulse = settling
+    ? 1 + Math.sin(t.age * 18) * 0.18 * settleProg
+    : 1 + Math.sin(t.age * 12) * 0.06;
+
+  // Outer wide aura (the radiance)
+  const auraR = (settling ? 38 * settleProg + 14 : 22 + proximity * 10) * SCALE * pulse;
+  const aura = ctx.createRadialGradient(0, 0, 0, 0, 0, auraR);
+  aura.addColorStop(0, `rgba(255, 240, 180, ${settling ? 0.9 : 0.85 + proximity * 0.15})`);
+  aura.addColorStop(0.35, 'rgba(255, 215, 107, 0.5)');
+  aura.addColorStop(1, 'rgba(255, 215, 107, 0)');
+  ctx.fillStyle = aura;
   ctx.beginPath();
-  ctx.arc(0, 0, haloR, 0, 6.283);
+  ctx.arc(0, 0, auraR, 0, 6.283);
   ctx.fill();
 
-  // 4-pointed sparkle star
-  const r = (7 + proximity * 1.5) * SCALE;
-  const r2 = 2 * SCALE;
-  ctx.fillStyle = '#fff5d8';
-  ctx.beginPath();
-  for (let i = 0; i < 8; i++) {
-    const a = (Math.PI / 4) * i;
-    const rad = i % 2 === 0 ? r : r2;
-    const x = Math.cos(a) * rad;
-    const y = Math.sin(a) * rad;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  // Concentric pulse rings during settle (the "radiating" visual)
+  if (settling) {
+    for (let k = 0; k < 3; k++) {
+      const ringAge = (t.age * 1.8 + k * 0.33) % 1;
+      const ringR = (8 + ringAge * 38) * SCALE;
+      const alpha = (1 - ringAge) * 0.45 * settleProg;
+      ctx.strokeStyle = `rgba(255, 235, 160, ${alpha})`;
+      ctx.lineWidth = 1.4 * SCALE;
+      ctx.beginPath();
+      ctx.arc(0, 0, ringR, 0, 6.283);
+      ctx.stroke();
+    }
   }
-  ctx.closePath();
-  ctx.fill();
 
-  // Bright white pinhole core
-  ctx.fillStyle = '#ffffff';
+  // Rotating radial rays (sun rays) — the "radiating gold" identity
+  ctx.rotate(t.rot);
+  const rayCount = 8;
+  const rayInner = (settling ? 4.5 : 3) * SCALE;
+  const rayOuter = (settling ? 14 + 4 * pulse : 9 + proximity * 2) * SCALE;
+  ctx.strokeStyle = `rgba(255, 245, 200, ${settling ? 0.95 : 0.85})`;
+  ctx.lineWidth = (settling ? 2.2 : 1.6) * SCALE;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < rayCount; i++) {
+    const a = (Math.PI * 2 / rayCount) * i;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * rayInner, Math.sin(a) * rayInner);
+    ctx.lineTo(Math.cos(a) * rayOuter, Math.sin(a) * rayOuter);
+    ctx.stroke();
+  }
+  // Second offset set of shorter rays for richness
+  ctx.strokeStyle = `rgba(255, 220, 140, ${settling ? 0.7 : 0.55})`;
+  ctx.lineWidth = (settling ? 1.4 : 1) * SCALE;
+  const rayOuter2 = rayOuter * 0.55;
+  for (let i = 0; i < rayCount; i++) {
+    const a = (Math.PI * 2 / rayCount) * i + (Math.PI / rayCount);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * rayInner * 0.6, Math.sin(a) * rayInner * 0.6);
+    ctx.lineTo(Math.cos(a) * rayOuter2, Math.sin(a) * rayOuter2);
+    ctx.stroke();
+  }
+
+  // Central bright disk
+  const coreR = (settling ? 4.5 + 1.5 * pulse : 3.5 + proximity * 0.8) * SCALE;
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR * 1.6);
+  core.addColorStop(0, '#ffffff');
+  core.addColorStop(0.5, '#fff3c8');
+  core.addColorStop(1, 'rgba(255, 215, 107, 0)');
+  ctx.fillStyle = core;
   ctx.beginPath();
-  ctx.arc(0, 0, 1.8 * SCALE, 0, 6.283);
+  ctx.arc(0, 0, coreR * 1.6, 0, 6.283);
   ctx.fill();
 
   ctx.restore();

@@ -1,0 +1,2271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#050811">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>THREAD — Weave the light</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,300;1,9..144,200&family=Geist+Mono:wght@300;400;500&family=Outfit:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  :root {
+    --bg-0: #050811;
+    --bg-1: #0a1226;
+    --ink: #e8eef8;
+    --ink-dim: rgba(232, 238, 248, 0.55);
+    --ink-mute: rgba(232, 238, 248, 0.32);
+    --cyan: #6ee2ff;
+    --gold: #ffd76b;
+    --rose: #ff7ab0;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg-0);
+    color: var(--ink);
+    font-family: 'Outfit', -apple-system, sans-serif;
+    font-weight: 300;
+    touch-action: none;
+    overscroll-behavior: none;
+    position: fixed;
+    inset: 0;
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
+    z-index: 10;
+    transition: opacity 0.4s ease;
+  }
+
+  .overlay.gone {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .overlay.hidden {
+    display: none;
+  }
+
+  /* ============ MENU ============ */
+
+  .menu-frame {
+    text-align: center;
+    transform: translateY(-4vh);
+  }
+
+  .eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-weight: 400;
+    font-size: 10px;
+    letter-spacing: 0.5em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    padding-left: 0.5em;
+    animation: fadeUp 0.9s 0.1s ease-out backwards;
+  }
+
+  .title {
+    font-family: 'Fraunces', serif;
+    font-weight: 200;
+    font-style: italic;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-size: clamp(88px, 26vw, 220px);
+    line-height: 0.85;
+    letter-spacing: -0.04em;
+    background: linear-gradient(180deg,
+      #fff 0%,
+      #cfecff 40%,
+      #6ee2ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 40px rgba(110, 226, 255, 0.35));
+    animation: fadeUp 1.2s 0.2s ease-out backwards, breathe 5s 1.4s ease-in-out infinite;
+  }
+
+  .tagline {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 200;
+    font-size: clamp(15px, 4vw, 22px);
+    color: var(--ink-dim);
+    letter-spacing: 0.04em;
+    margin-top: 22px;
+    animation: fadeUp 1.2s 0.5s ease-out backwards;
+  }
+
+  .start-cue {
+    position: absolute;
+    bottom: max(env(safe-area-inset-bottom), 18px);
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'Geist Mono', monospace;
+    font-weight: 300;
+    font-size: 11px;
+    letter-spacing: 0.45em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    padding-left: 0.45em;
+    animation: fadeUp 1.2s 0.8s ease-out backwards, pulse 2.4s 2s ease-in-out infinite;
+  }
+
+  .start-cue .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 12px var(--cyan);
+    margin: 0 1.2em -1px;
+    animation: dot-pulse 1.6s ease-in-out infinite;
+  }
+
+  .menu-best {
+    position: absolute;
+    top: max(env(safe-area-inset-top), 18px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    animation: fadeUp 1.2s 0.7s ease-out backwards;
+  }
+
+  .menu-best b {
+    font-weight: 400;
+    color: var(--ink-dim);
+    margin-left: 0.6em;
+    letter-spacing: 0.15em;
+  }
+
+  .menu-legend {
+    display: flex;
+    gap: clamp(14px, 5vw, 26px);
+    justify-content: center;
+    margin-top: 44px;
+    animation: fadeUp 1.2s 0.85s ease-out backwards;
+  }
+
+  .legend-item {
+    text-align: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    width: clamp(60px, 18vw, 78px);
+  }
+
+  .legend-icon {
+    width: clamp(28px, 7vw, 34px);
+    height: clamp(28px, 7vw, 34px);
+    margin: 0 auto 9px;
+    border-radius: 50%;
+    position: relative;
+  }
+  .legend-icon.orb {
+    background: radial-gradient(circle at 50% 50%, #ffffff 0%, #6ee2ff 50%, rgba(110,226,255,0.1) 100%);
+    box-shadow: 0 0 18px rgba(110, 226, 255, 0.65);
+  }
+  .legend-icon.ring {
+    border: 2px solid #ffd76b;
+    box-shadow: 0 0 14px rgba(255, 215, 107, 0.5), inset 0 0 8px rgba(255, 215, 107, 0.3);
+    background: transparent;
+  }
+  .legend-icon.blade {
+    background: radial-gradient(circle, #ff7ab0 20%, #b8275a 80%);
+    box-shadow: 0 0 16px rgba(255, 122, 176, 0.6);
+    clip-path: polygon(50% 0, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0 50%, 35% 35%);
+    border-radius: 0;
+  }
+  .legend-icon.loop {
+    border: 1.5px dashed #ffffff;
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.55);
+    background: radial-gradient(circle, rgba(255,215,107,0.18) 0%, transparent 60%);
+  }
+
+  /* ============ RESONANCE INDICATOR ============ */
+
+  .resonance {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+
+  .resonance.show { opacity: 1; }
+
+  .resonance-label {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 200;
+    font-size: clamp(38px, 11vw, 64px);
+    letter-spacing: 0.06em;
+    color: rgba(255, 215, 107, 0.85);
+    text-shadow: 0 0 40px rgba(255, 215, 107, 0.45);
+    line-height: 1;
+  }
+
+  .resonance-sub {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.5em;
+    color: rgba(255, 215, 107, 0.6);
+    text-transform: uppercase;
+    padding-left: 0.5em;
+    margin-top: 8px;
+  }
+
+  /* ============ HUD ============ */
+
+  .hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: max(env(safe-area-inset-top), 16px) 20px 0;
+    z-index: 5;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .score-line {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .score {
+    font-family: 'Geist Mono', monospace;
+    font-weight: 300;
+    font-size: clamp(42px, 11vw, 64px);
+    line-height: 1;
+    color: var(--ink);
+    text-shadow: 0 0 24px rgba(110, 226, 255, 0.4);
+    font-variant-numeric: tabular-nums;
+    transition: color 0.3s;
+  }
+
+  .score.gold { color: var(--gold); text-shadow: 0 0 24px rgba(255, 215, 107, 0.5); }
+  .score.rose { color: var(--rose); text-shadow: 0 0 24px rgba(255, 122, 176, 0.5); }
+
+  .mult {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 200;
+    font-size: clamp(22px, 5vw, 32px);
+    color: var(--gold);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+
+  .mult.show { opacity: 0.95; transform: translateY(0); }
+
+  .combo-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.35em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    margin-top: 6px;
+    min-height: 14px;
+    transition: color 0.3s;
+  }
+
+  .combo-label.hot { color: rgba(255, 215, 107, 0.85); }
+
+  .best-corner {
+    position: absolute;
+    top: max(env(safe-area-inset-top), 18px);
+    right: 20px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    z-index: 5;
+    pointer-events: none;
+    text-align: right;
+  }
+
+  .best-corner b {
+    display: block;
+    font-weight: 400;
+    color: var(--ink-dim);
+    font-size: 14px;
+    margin-top: 2px;
+    letter-spacing: 0.1em;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  /* ============ GAME OVER ============ */
+
+  .over-frame {
+    text-align: center;
+    padding: 0 24px;
+  }
+
+  .over-reason {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 200;
+    font-size: clamp(18px, 5vw, 26px);
+    color: var(--rose);
+    letter-spacing: 0.02em;
+    margin-bottom: 16px;
+    animation: fadeUp 0.5s 0.1s ease-out backwards;
+  }
+
+  .over-score {
+    font-family: 'Fraunces', serif;
+    font-weight: 200;
+    font-size: clamp(96px, 28vw, 200px);
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    background: linear-gradient(180deg, #fff 0%, #ffd0e2 60%, #ff7ab0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 36px rgba(255, 122, 176, 0.35));
+    font-variant-numeric: tabular-nums;
+    animation: fadeUp 0.7s 0.25s ease-out backwards;
+  }
+
+  .over-newbest {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--gold);
+    text-transform: uppercase;
+    padding-left: 0.4em;
+    margin-top: 4px;
+    animation: fadeUp 0.5s 0.45s ease-out backwards, pulse 2s ease-in-out infinite;
+  }
+
+  .over-stats {
+    display: flex;
+    gap: clamp(20px, 6vw, 40px);
+    justify-content: center;
+    margin-top: 28px;
+    animation: fadeUp 0.5s 0.55s ease-out backwards;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-family: 'Geist Mono', monospace;
+    font-weight: 300;
+    font-size: clamp(18px, 4.5vw, 22px);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .over-cta {
+    position: absolute;
+    bottom: max(env(safe-area-inset-bottom), 24px);
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.45em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    padding-left: 0.45em;
+    animation: fadeUp 0.5s 0.8s ease-out backwards, pulse 2.4s 1.2s ease-in-out infinite;
+  }
+
+  .over-cta .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rose);
+    box-shadow: 0 0 12px var(--rose);
+    margin: 0 1.2em -1px;
+    animation: dot-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* ============ ANIMATIONS ============ */
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
+
+  @keyframes dot-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(0.6); opacity: 0.4; }
+  }
+
+  @keyframes breathe {
+    0%, 100% { filter: drop-shadow(0 0 40px rgba(110, 226, 255, 0.3)); }
+    50%      { filter: drop-shadow(0 0 60px rgba(110, 226, 255, 0.55)); }
+  }
+
+  /* iOS rubber-band kill */
+  body, html { position: fixed; width: 100%; }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- HUD (during play) -->
+<div class="hud hidden" id="hud">
+  <div class="score-line">
+    <div class="score" id="score">0</div>
+    <div class="mult" id="mult">×2</div>
+  </div>
+  <div class="combo-label" id="combo"></div>
+</div>
+<div class="best-corner hidden" id="best-corner">
+  Best<b id="best-num">0</b>
+</div>
+
+<!-- MENU -->
+<div class="overlay" id="menu">
+  <div class="menu-best">Best record<b id="menu-best">0</b></div>
+  <div class="menu-frame">
+    <div class="eyebrow">A one-finger arcade</div>
+    <div class="title">Thread</div>
+    <div class="tagline">Weave the light. Loop the dark.</div>
+    <div class="menu-legend">
+      <div class="legend-item"><div class="legend-icon orb"></div>Catch</div>
+      <div class="legend-item"><div class="legend-icon ring"></div>Thread</div>
+      <div class="legend-item"><div class="legend-icon blade"></div>Avoid</div>
+      <div class="legend-item"><div class="legend-icon loop"></div>Loop</div>
+    </div>
+  </div>
+  <div class="start-cue">Touch <span class="dot"></span> Hold <span class="dot"></span> Weave</div>
+</div>
+
+<!-- RESONANCE OVERLAY -->
+<div class="resonance hidden" id="resonance">
+  <div class="resonance-label">Resonance</div>
+  <div class="resonance-sub">Loops × 2</div>
+</div>
+
+<!-- GAME OVER -->
+<div class="overlay hidden" id="over">
+  <div class="over-frame">
+    <div class="over-reason" id="over-reason">Snapped</div>
+    <div class="over-score" id="over-score">0</div>
+    <div class="over-newbest hidden" id="over-newbest">New record</div>
+    <div class="over-stats">
+      <div class="stat"><div class="stat-label">Time</div><div class="stat-value" id="over-time">0s</div></div>
+      <div class="stat"><div class="stat-label">Chain</div><div class="stat-value" id="over-chain">0</div></div>
+      <div class="stat"><div class="stat-label">Loops</div><div class="stat-value" id="over-loops">0</div></div>
+      <div class="stat"><div class="stat-label">Best</div><div class="stat-value" id="over-best">0</div></div>
+    </div>
+  </div>
+  <div class="over-cta">Tap <span class="dot"></span> Weave again</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ============================================================
+// CANVAS + DPR
+// ============================================================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d', { alpha: false });
+let W = 0, H = 0, DPR = 1, SCALE = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // SCALE: 1.0 on a ~600px wide screen. Bigger on tablets, smaller on tiny phones.
+  SCALE = Math.max(0.75, Math.min(1.6, Math.min(W, H) / 520));
+}
+resize();
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+
+// ============================================================
+// DOM
+// ============================================================
+const $ = (id) => document.getElementById(id);
+const $hud      = $('hud');
+const $score    = $('score');
+const $mult     = $('mult');
+const $combo    = $('combo');
+const $best     = $('best-corner');
+const $bestNum  = $('best-num');
+const $menu     = $('menu');
+const $menuBest = $('menu-best');
+const $over     = $('over');
+const $oReason  = $('over-reason');
+const $oScore   = $('over-score');
+const $oTime    = $('over-time');
+const $oChain   = $('over-chain');
+const $oLoops   = $('over-loops');
+const $oBest    = $('over-best');
+const $oNew     = $('over-newbest');
+const $resonance = $('resonance');
+
+// ============================================================
+// AUDIO — procedural pentatonic + reverb
+// ============================================================
+let actx = null;
+let bus = null;
+let reverb = null;
+let drone = [];
+
+function initAudio() {
+  if (actx) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    actx = new AC();
+    bus = actx.createGain();
+    bus.gain.value = 0.32;
+
+    // Reverb impulse
+    const sr = actx.sampleRate;
+    const len = sr * 1.5;
+    const ir = actx.createBuffer(2, len, sr);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.4) * 0.35;
+      }
+    }
+    reverb = actx.createConvolver();
+    reverb.buffer = ir;
+    const revGain = actx.createGain();
+    revGain.gain.value = 0.5;
+    reverb.connect(revGain);
+    revGain.connect(actx.destination);
+    bus.connect(reverb);
+    bus.connect(actx.destination);
+
+    startDrone();
+  } catch (e) { /* silent fallback */ }
+}
+
+function startDrone() {
+  // Ambient A1 + E2 + A2 drone, gently modulated
+  const freqs = [55, 82.4, 110];
+  freqs.forEach((f, i) => {
+    const osc = actx.createOscillator();
+    const g = actx.createGain();
+    const lfo = actx.createOscillator();
+    const lfoG = actx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = f;
+    g.gain.value = 0.024 - i * 0.005;
+    lfo.frequency.value = 0.13 + i * 0.07;
+    lfoG.gain.value = 0.012;
+    lfo.connect(lfoG);
+    lfoG.connect(g.gain);
+    osc.connect(g);
+    g.connect(bus);
+    osc.start();
+    lfo.start();
+    drone.push({ osc, g });
+  });
+}
+
+// A minor pentatonic across 2.5 octaves
+const SCALE_NOTES = [
+  220.00, 261.63, 293.66, 329.63, 392.00,
+  440.00, 523.25, 587.33, 659.25, 783.99,
+  880.00, 1046.50, 1174.66
+];
+let noteIdx = 0;
+
+function tone(freq, dur, type, vol, delay = 0) {
+  if (!actx) return;
+  const t = actx.currentTime + delay;
+  const osc = actx.createOscillator();
+  const g = actx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g);
+  g.connect(bus);
+  osc.start(t);
+  osc.stop(t + dur + 0.05);
+}
+
+function sfxOrb(comboLevel, yNorm) {
+  if (!actx) return;
+  // Position determines base note (top = high note, bottom = low note)
+  // Combo adds an upward offset over time, creating ascending melodic chains
+  const yClamped = clamp(1 - yNorm, 0, 1);
+  const baseIdx = Math.floor(yClamped * (SCALE_NOTES.length - 4));
+  const comboOffset = Math.min(4, Math.floor(comboLevel / 5));
+  const idx = clamp(baseIdx + comboOffset, 0, SCALE_NOTES.length - 1);
+  const f = SCALE_NOTES[idx];
+  tone(f, 0.7, 'sine', 0.16);
+  tone(f * 2, 0.5, 'sine', 0.04);
+  tone(f * 3, 0.3, 'sine', 0.015);
+  noteIdx++;
+}
+
+function sfxLoop(yNorm, captured, isResonance) {
+  if (!actx) return;
+  // Arpeggio rooted at scale degree determined by closure height
+  // Pentatonic-friendly intervals: 0, 2, 4, 5, 7 (1, 3, 5, 6, 8 of scale)
+  const yClamped = clamp(1 - yNorm, 0, 1);
+  const rootIdx = Math.floor(yClamped * (SCALE_NOTES.length - 8));
+  const offsets = [0, 2, 4, 5, 7];
+  const count = Math.min(offsets.length, 3 + captured);
+  for (let i = 0; i < count; i++) {
+    const idx = clamp(rootIdx + offsets[i], 0, SCALE_NOTES.length - 1);
+    const f = SCALE_NOTES[idx];
+    const vol = isResonance ? 0.16 : 0.12;
+    tone(f, 1.0, 'sine', vol, i * 0.055);
+    tone(f * 2, 0.5, 'sine', 0.028, i * 0.055);
+  }
+  // Sub bass thump (the "closure" feeling)
+  tone(110, 0.55, 'sine', 0.13);
+  tone(165, 0.35, 'triangle', 0.05, 0.02);
+  // High shimmer if resonance
+  if (isResonance) {
+    tone(SCALE_NOTES[SCALE_NOTES.length - 1] * 2, 0.7, 'sine', 0.06, 0.18);
+    tone(SCALE_NOTES[SCALE_NOTES.length - 1] * 3, 0.6, 'sine', 0.03, 0.22);
+  }
+}
+
+function sfxTrophy(comboLevel, yNorm) {
+  if (!actx) return;
+  // Brighter, bell-like — distinct from orb collect.
+  // Combo offset rises rapidly so chains feel like ascending arpeggios.
+  const yClamped = clamp(1 - yNorm, 0, 1);
+  const baseIdx = Math.floor(yClamped * (SCALE_NOTES.length - 6));
+  const comboOffset = Math.min(7, Math.floor(comboLevel / 3));
+  const idx = clamp(baseIdx + comboOffset, 0, SCALE_NOTES.length - 1);
+  const f = SCALE_NOTES[idx];
+  tone(f,     0.55, 'sine', 0.13);
+  tone(f * 2, 0.40, 'sine', 0.065);
+  tone(f * 3, 0.28, 'sine', 0.028);
+  tone(f * 4, 0.18, 'sine', 0.012);
+  noteIdx++;
+}
+
+function sfxRipen(yNorm) {
+  if (!actx) return;
+  // Falling chirp — "tick tick" warning the orb is about to turn
+  tone(380, 0.10, 'square', 0.035);
+  tone(280, 0.10, 'square', 0.030, 0.06);
+}
+
+function sfxResonance() {
+  if (!actx) return;
+  // Brief rising flourish + low bell when resonance starts
+  for (let i = 0; i < 5; i++) {
+    tone(SCALE_NOTES[i + 3], 0.9, 'sine', 0.09, i * 0.07);
+    tone(SCALE_NOTES[i + 3] * 2, 0.7, 'sine', 0.03, i * 0.07);
+  }
+  tone(82.4, 1.2, 'sine', 0.18);
+  tone(123.5, 1.0, 'triangle', 0.06, 0.05);
+}
+
+function modulateDrone(headY) {
+  if (!actx || !drone.length) return;
+  // Map head Y to drone detune in cents.
+  // Top of screen = bright/high. Bottom = grounded/low.
+  const ny = clamp(headY / H, 0, 1);
+  const baseCents = lerp(420, -260, ny);
+  const target = baseCents + (resonance ? 700 : 0);
+  // Smooth toward target each frame
+  dronePitchCurrent = lerp(dronePitchCurrent, target, 0.08);
+  for (const d of drone) {
+    try { d.osc.detune.value = dronePitchCurrent; } catch (e) {}
+  }
+}
+
+function sfxRing() {
+  if (!actx) return;
+  // Bell-like: stacked partials
+  tone(523.25, 0.9, 'sine', 0.14);
+  tone(1046.50, 0.7, 'sine', 0.07);
+  tone(1568.00, 0.5, 'sine', 0.03);
+  tone(2093.00, 0.3, 'sine', 0.015);
+}
+
+function sfxSnap() {
+  if (!actx) return;
+  // Glass break: noise burst + sub-tone
+  const t = actx.currentTime;
+  const sr = actx.sampleRate;
+  const len = Math.floor(sr * 0.4);
+  const buf = actx.createBuffer(1, len, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.07));
+  }
+  const src = actx.createBufferSource();
+  src.buffer = buf;
+  const flt = actx.createBiquadFilter();
+  flt.type = 'bandpass';
+  flt.frequency.value = 2400;
+  flt.Q.value = 1.4;
+  const g = actx.createGain();
+  g.gain.value = 0.55;
+  src.connect(flt); flt.connect(g); g.connect(bus);
+  src.start(t);
+  tone(140, 0.5, 'sawtooth', 0.16);
+  tone(95, 0.7, 'sine', 0.12);
+}
+
+function sfxWarn() {
+  if (!actx) return;
+  tone(155, 0.08, 'square', 0.05);
+}
+
+function vibrate(pattern) {
+  try { navigator.vibrate && navigator.vibrate(pattern); } catch (e) {}
+}
+
+// ============================================================
+// INPUT
+// ============================================================
+let down = false;
+let px = 0, py = 0;
+px = W / 2; py = H / 2;
+
+function getXY(e) {
+  const t = e.touches ? e.touches[0] : e;
+  if (!t) return null;
+  return { x: t.clientX, y: t.clientY };
+}
+
+function pointerDown(e) {
+  e.preventDefault();
+  initAudio();
+  if (actx && actx.state === 'suspended') actx.resume();
+  const xy = getXY(e);
+  if (!xy) return;
+  px = xy.x; py = xy.y;
+  down = true;
+  releaseTime = 0;
+  if (state === ST.MENU) startGame();
+  else if (state === ST.OVER && stateT > 0.5) startGame();
+}
+
+function pointerMove(e) {
+  if (!down) return;
+  e.preventDefault();
+  const xy = getXY(e);
+  if (!xy) return;
+  px = xy.x; py = xy.y;
+}
+
+function pointerUp(e) {
+  if (down) e.preventDefault();
+  down = false;
+}
+
+canvas.addEventListener('touchstart', pointerDown, { passive: false });
+canvas.addEventListener('touchmove',  pointerMove, { passive: false });
+canvas.addEventListener('touchend',   pointerUp,   { passive: false });
+canvas.addEventListener('touchcancel',pointerUp,   { passive: false });
+canvas.addEventListener('mousedown',  pointerDown);
+canvas.addEventListener('mousemove',  pointerMove);
+canvas.addEventListener('mouseup',    pointerUp);
+window.addEventListener('mouseleave', () => { down = false; });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) down = false;
+});
+
+// ============================================================
+// STATE
+// ============================================================
+const ST = { MENU: 0, PLAYING: 1, DYING: 2, OVER: 3 };
+let state = ST.MENU;
+let stateT = 0;
+
+let best = 0;
+try { best = parseInt(localStorage.getItem('thread_best_v3') || '0', 10) || 0; } catch (e) {}
+function saveBest() {
+  try { localStorage.setItem('thread_best_v3', String(best)); } catch (e) {}
+}
+$bestNum.textContent = best;
+$menuBest.textContent = best;
+
+// Thread
+let thread = [];           // array of {x, y}
+let head = { x: 0, y: 0 };
+let prevHead = { x: 0, y: 0 };
+let velocity = 0;
+let threadLen = 60;        // current max length (in points)
+let tension = 0;
+let releaseTime = 0;
+let glow = 0;              // 0..1 short-lived collection glow
+let invuln = 0;            // start-of-run grace
+
+const LEN_MIN = 12;
+const LEN_MAX = 240;
+const LEN_DECAY = 5.5;        // points/second
+const LEN_GAIN_ORB = 14;
+const LEN_GAIN_RING = 10;
+const TENSION_SNAP = 2.5;
+
+// Objects
+let objects = [];
+let particles = [];
+let popups = [];
+let waves = [];
+let fragments = [];
+let bgParts = [];
+let loopFlashes = [];     // {poly, life, maxLife, captured, isResonance}
+let trophies = [];        // {x, y, vx, vy, hue, rot, vrot, life, value, age, type, trail, magnetStrength}
+
+// Loop mechanic
+const LOOP_MIN_AREA_BASE = 1100;   // px^2 minimum at SCALE=1; scales with SCALE^2
+const LOOP_CHECK_GAP = 5;          // skip this many newest segments to avoid micro-loops
+let totalLoops = 0;
+
+// Resonance window (every ~45-65s, 6.5s duration)
+let resonance = false;
+let resonanceT = 0;
+let nextResonanceT = 32;
+const RESONANCE_DUR = 6.5;
+
+// Drone pitch modulation (driven by head Y position)
+let dronePitchCurrent = 0;
+
+// Score
+let score = 0;
+let displayScore = 0;
+let combo = 0;
+let comboT = 0;
+let maxCombo = 0;
+let runTime = 0;
+let spawnT = 0.6;
+let endReason = 'Snapped';
+
+// FX
+let shake = 0;
+let flashA = 0;
+let flashR = 255, flashG = 80, flashB = 120;
+let slowmo = 1;
+
+// Background
+for (let i = 0; i < 80; i++) {
+  bgParts.push({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    vy: -(6 + Math.random() * 16),
+    r: 0.4 + Math.random() * 1.4,
+    a: 0.06 + Math.random() * 0.22,
+    tw: Math.random() * 6.28,
+  });
+}
+
+// Menu demo thread
+let menuPath = [];
+let menuT = 0;
+
+// ============================================================
+// UTILITIES
+// ============================================================
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+const rand = (a, b) => a + Math.random() * (b - a);
+function dist2(ax, ay, bx, by) {
+  const dx = ax - bx, dy = ay - by;
+  return dx * dx + dy * dy;
+}
+
+// Geometry for loop detection
+function segIntersect(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y) {
+  const d1x = p2x - p1x, d1y = p2y - p1y;
+  const d2x = p4x - p3x, d2y = p4y - p3y;
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-6) return null;
+  const dxs = p3x - p1x, dys = p3y - p1y;
+  const t = (dxs * d2y - dys * d2x) / denom;
+  const u = (dxs * d1y - dys * d1x) / denom;
+  if (t > 0.001 && t < 0.999 && u > 0.001 && u < 0.999) {
+    return { x: p1x + t * d1x, y: p1y + t * d1y };
+  }
+  return null;
+}
+
+function polyArea(poly) {
+  let a = 0;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    a += (poly[j].x + poly[i].x) * (poly[j].y - poly[i].y);
+  }
+  return Math.abs(a / 2);
+}
+
+function pointInPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y;
+    const xj = poly[j].x, yj = poly[j].y;
+    if (((yi > y) !== (yj > y)) &&
+        (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// ============================================================
+// SPAWNING
+// ============================================================
+const T_ORB = 0, T_RING = 1, T_BLADE = 2;
+
+function spawn() {
+  const margin = 50 * SCALE;
+  const x = margin + Math.random() * (W - margin * 2);
+
+  // Difficulty: ramp over first 90s
+  const d = clamp(runTime / 90, 0, 1);
+
+  let type;
+  const r = Math.random();
+  if (r < 0.62) type = T_ORB;
+  else if (r < 0.82 + d * 0.02) type = T_RING;
+  else type = T_BLADE;
+
+  // Speeds scale with time
+  const baseSpeed = 95 + runTime * 1.4;
+  const speed = (baseSpeed + rand(-12, 22)) * SCALE;
+
+  const o = {
+    type, x, y: -80 * SCALE,
+    vx: rand(-12, 12),
+    vy: speed,
+    age: 0,
+    rot: Math.random() * 6.28,
+    vrot: rand(-1.6, 1.6),
+    pulse: Math.random() * 6.28,
+    consumed: false,
+    flash: 0,
+  };
+
+  if (type === T_ORB) {
+    o.r = (11 + Math.random() * 3) * SCALE;
+    o.hue = 188 + Math.random() * 14;
+    // RIPENING: some orbs ripen slowly (safe), some fast (urgent)
+    // ripeRate of 0.10 = ~10 seconds to fully ripen (very slow, safe)
+    // ripeRate of 0.28 = ~3.5 seconds to fully ripen (urgent)
+    o.ripeness = 0;
+    o.ripeRate = rand(0.10, 0.20) + d * 0.08;  // gets faster with difficulty
+    o.ripeWarn = false;
+  } else if (type === T_RING) {
+    o.r = (38 + Math.random() * 8) * SCALE;
+    o.innerR = o.r * 0.72;
+    o.hue = 42 + Math.random() * 12;
+    o.ripeness = 0;
+  } else { // BLADE
+    o.r = 22 * SCALE;
+    o.spikes = 6;
+    o.hue = 340;
+    o.vrot = rand(2.6, 4.2) * (Math.random() < 0.5 ? -1 : 1);
+    o.ripeness = 0;
+  }
+
+  objects.push(o);
+}
+
+// ============================================================
+// PARTICLES / POPUPS / WAVES
+// ============================================================
+function burst(x, y, hue, count, spd, life) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * 6.283;
+    const s = spd * (0.35 + Math.random() * 0.85);
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      life, maxLife: life,
+      r: (1.2 + Math.random() * 2.3) * SCALE,
+      hue,
+      sat: 100,
+      lit: 70,
+    });
+  }
+}
+
+function trail(x, y, hue) {
+  particles.push({
+    x: x + rand(-2, 2),
+    y: y + rand(-2, 2),
+    vx: rand(-30, 30),
+    vy: rand(-30, 30),
+    life: 0.5,
+    maxLife: 0.5,
+    r: (1 + Math.random() * 1.2) * SCALE,
+    hue,
+    sat: 80,
+    lit: 80,
+  });
+}
+
+function popup(x, y, text, color) {
+  popups.push({
+    x, y, text, color,
+    life: 1.2, maxLife: 1.2,
+  });
+}
+
+function wave(x, y, hue, r1, r2, life) {
+  waves.push({ x, y, r1, r2, life, maxLife: life, hue });
+}
+
+function fragmentThread() {
+  // Break the thread into flying line segments
+  for (let i = 0; i < thread.length - 1; i += 2) {
+    const a = thread[i], b = thread[i + 1];
+    if (!a || !b) continue;
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+    fragments.push({
+      x: cx, y: cy,
+      vx: rand(-260, 260),
+      vy: rand(-300, 200),
+      angle: Math.atan2(b.y - a.y, b.x - a.x),
+      vAngle: rand(-6, 6),
+      life: 1.1,
+      maxLife: 1.1,
+      len: Math.hypot(b.x - a.x, b.y - a.y),
+    });
+  }
+}
+
+// ============================================================
+// STATE TRANSITIONS
+// ============================================================
+function showMenu() {
+  state = ST.MENU;
+  stateT = 0;
+  $menu.classList.remove('hidden', 'gone');
+  $over.classList.add('hidden');
+  $hud.classList.add('hidden');
+  $best.classList.add('hidden');
+  $resonance.classList.add('hidden');
+  $resonance.classList.remove('show');
+  $menuBest.textContent = best;
+}
+
+function startGame() {
+  state = ST.PLAYING;
+  stateT = 0;
+  thread = [];
+  head.x = px; head.y = py;
+  prevHead.x = px; prevHead.y = py;
+  threadLen = 60;
+  tension = 0;
+  velocity = 0;
+  releaseTime = 0;
+  glow = 0;
+  invuln = 1.0;
+
+  objects = [];
+  particles = [];
+  popups = [];
+  waves = [];
+  fragments = [];
+  loopFlashes = [];
+  trophies = [];
+
+  score = 0;
+  displayScore = 0;
+  combo = 0;
+  comboT = 0;
+  maxCombo = 0;
+  runTime = 0;
+  spawnT = 0.4;
+  shake = 0;
+  flashA = 0;
+  slowmo = 1;
+  noteIdx = 0;
+  totalLoops = 0;
+  resonance = false;
+  resonanceT = 0;
+  nextResonanceT = 32;
+  dronePitchCurrent = 0;
+  $resonance.classList.add('hidden');
+  $resonance.classList.remove('show');
+
+  $menu.classList.add('gone');
+  setTimeout(() => $menu.classList.add('hidden'), 400);
+  $over.classList.add('hidden');
+  $hud.classList.remove('hidden');
+  $best.classList.remove('hidden');
+  $bestNum.textContent = best;
+  $score.textContent = '0';
+  $score.className = 'score';
+  $combo.textContent = '';
+  $combo.className = 'combo-label';
+  $mult.classList.remove('show');
+}
+
+function endGame(reason, hue) {
+  if (state !== ST.PLAYING) return;
+
+  // Flush any flying trophies into the score (player keeps their loot even on death)
+  for (const t of trophies) {
+    const mult = 1 + Math.floor(combo / 3);
+    score += t.value * mult;
+  }
+  trophies = [];
+
+  state = ST.DYING;
+  stateT = 0;
+  endReason = reason;
+
+  fragmentThread();
+  burst(head.x, head.y, hue || 340, 36, 360, 1.1);
+
+  sfxSnap();
+  vibrate([20, 30, 70]);
+  shake = 28;
+  slowmo = 0.18;
+  flashR = 255; flashG = 90; flashB = 130;
+  flashA = 0.45;
+
+  if (score > best) {
+    best = score;
+    saveBest();
+  }
+}
+
+function showOver() {
+  state = ST.OVER;
+  stateT = 0;
+  $hud.classList.add('hidden');
+  $best.classList.add('hidden');
+  $resonance.classList.add('hidden');
+  $resonance.classList.remove('show');
+  $over.classList.remove('hidden');
+  $over.classList.remove('gone');
+  $oReason.textContent = endReason;
+  $oTime.textContent = Math.floor(runTime) + 's';
+  $oChain.textContent = maxCombo;
+  $oLoops.textContent = totalLoops;
+  $oBest.textContent = best;
+  const wasNew = score > 0 && score === best && best > 0;
+  $oNew.classList.toggle('hidden', !wasNew);
+
+  // Animate score count-up
+  $oScore.textContent = '0';
+  const startMs = performance.now();
+  const dur = 1100;
+  const final = score;
+  function tick(now) {
+    const t = clamp((now - startMs) / dur, 0, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    $oScore.textContent = Math.floor(final * eased);
+    if (t < 1 && state === ST.OVER) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ============================================================
+// UPDATE
+// ============================================================
+function update(dt) {
+  stateT += dt;
+
+  // Background particles always animate
+  for (const p of bgParts) {
+    p.y += p.vy * dt;
+    p.tw += dt * 2;
+    if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
+  }
+
+  // Generic particle update
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= Math.pow(0.06, dt);
+    p.vy *= Math.pow(0.06, dt);
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  for (let i = popups.length - 1; i >= 0; i--) {
+    const p = popups[i];
+    p.y -= 70 * dt;
+    p.life -= dt;
+    if (p.life <= 0) popups.splice(i, 1);
+  }
+  for (let i = waves.length - 1; i >= 0; i--) {
+    waves[i].life -= dt;
+    if (waves[i].life <= 0) waves.splice(i, 1);
+  }
+  for (let i = fragments.length - 1; i >= 0; i--) {
+    const f = fragments[i];
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    f.vy += 600 * dt; // gravity for fragments
+    f.angle += f.vAngle * dt;
+    f.life -= dt;
+    if (f.life <= 0) fragments.splice(i, 1);
+  }
+  // Loop flash effects
+  for (let i = loopFlashes.length - 1; i >= 0; i--) {
+    loopFlashes[i].life -= dt;
+    if (loopFlashes[i].life <= 0) loopFlashes.splice(i, 1);
+  }
+
+  // FX decay
+  shake *= Math.pow(0.0005, dt);
+  if (shake < 0.05) shake = 0;
+  flashA *= Math.pow(0.005, dt);
+  if (flashA < 0.005) flashA = 0;
+  slowmo = lerp(slowmo, 1, 1 - Math.pow(0.05, dt));
+  glow *= Math.pow(0.001, dt);
+
+  if (state === ST.MENU) updateMenu(dt);
+  else if (state === ST.PLAYING) updatePlay(dt);
+  else if (state === ST.DYING) {
+    if (stateT > 1.1) showOver();
+  }
+
+  // Animate displayed score
+  displayScore = lerp(displayScore, score, 1 - Math.pow(0.0008, dt));
+  if (state === ST.PLAYING || state === ST.DYING) {
+    $score.textContent = Math.floor(displayScore);
+  }
+}
+
+function updateMenu(dt) {
+  menuT += dt;
+  // Procedural Lissajous-ish path centered low
+  const cx = W / 2;
+  const cy = H / 2 + Math.min(120, H * 0.18);
+  const rx = Math.min(W * 0.32, 180);
+  const ry = Math.min(H * 0.10, 60);
+  const t = menuT * 0.65;
+  menuPath.push({
+    x: cx + Math.cos(t * 1.3) * rx + Math.sin(t * 0.5) * 20,
+    y: cy + Math.sin(t * 1.9) * ry + Math.cos(t * 0.7) * 10,
+  });
+  while (menuPath.length > 80) menuPath.shift();
+}
+
+function updatePlay(dt) {
+  const sdt = dt * slowmo;
+  runTime += sdt;
+  invuln = Math.max(0, invuln - dt);
+
+  // Finger release handling
+  if (!down) {
+    releaseTime += dt;
+    if (releaseTime > 0.4) {
+      endGame('Released', 200);
+      return;
+    }
+  } else {
+    releaseTime = 0;
+  }
+
+  // Spring head toward pointer (when finger is down)
+  prevHead.x = head.x;
+  prevHead.y = head.y;
+  if (down) {
+    const k = 1 - Math.exp(-26 * dt);
+    head.x = lerp(head.x, px, k);
+    head.y = lerp(head.y, py, k);
+  }
+  const dx = head.x - prevHead.x;
+  const dy = head.y - prevHead.y;
+  velocity = Math.hypot(dx, dy) / Math.max(dt, 0.001);
+
+  // Append to thread (skip duplicates for perf)
+  if (down) {
+    const last = thread[thread.length - 1];
+    if (!last || (last.x - head.x) * (last.x - head.x) + (last.y - head.y) * (last.y - head.y) > 1) {
+      thread.push({ x: head.x, y: head.y });
+    }
+  }
+  while (thread.length > Math.floor(threadLen)) thread.shift();
+
+  // Length decay (faster when shorter? No, linear is fine)
+  threadLen -= LEN_DECAY * dt;
+  if (threadLen < LEN_MIN) {
+    endGame('Burned out', 200);
+    return;
+  }
+
+  // Tension from curvature over recent thread
+  if (thread.length > 10) {
+    let curv = 0;
+    const sample = Math.min(8, thread.length - 2);
+    for (let i = thread.length - sample; i < thread.length - 1; i++) {
+      if (i < 1) continue;
+      const a = thread[i - 1], b = thread[i], c = thread[i + 1];
+      const v1x = b.x - a.x, v1y = b.y - a.y;
+      const v2x = c.x - b.x, v2y = c.y - b.y;
+      const m1 = Math.hypot(v1x, v1y) || 0.001;
+      const m2 = Math.hypot(v2x, v2y) || 0.001;
+      const dot = (v1x * v2x + v1y * v2y) / (m1 * m2);
+      const ang = Math.acos(clamp(dot, -1, 1));
+      curv += ang;
+    }
+    const targetT = (curv / sample) * 4.2 + Math.min(0.3, velocity / 4000);
+    tension = lerp(tension, targetT, 1 - Math.pow(0.01, dt));
+  } else {
+    tension *= Math.pow(0.05, dt);
+  }
+
+  if (tension > TENSION_SNAP) {
+    endGame('Too sharp', 0);
+    return;
+  }
+  if (tension > TENSION_SNAP * 0.78 && Math.random() < dt * 10) sfxWarn();
+
+  // Trail particles from head when moving
+  if (down && velocity > 280 && Math.random() < dt * 26) {
+    trail(head.x, head.y, 190 + combo * 1.5);
+  }
+
+  // Combo timer
+  comboT -= dt;
+  if (comboT <= 0 && combo > 0) {
+    combo = 0;
+    refreshComboUI();
+  }
+
+  // Spawn
+  spawnT -= dt;
+  const minGap = clamp(0.85 - runTime * 0.009, 0.32, 0.85);
+  if (spawnT <= 0) {
+    spawn();
+    spawnT = minGap + rand(-0.06, 0.10);
+    // Sometimes spawn a small cluster of orbs (rewarding flow lines)
+    if (Math.random() < 0.18 && runTime > 4) {
+      for (let i = 0; i < 2; i++) {
+        const o = {
+          type: T_ORB,
+          x: clamp(objects[objects.length - 1].x + rand(-90, 90) * SCALE, 40, W - 40),
+          y: -80 * SCALE - i * 40 * SCALE,
+          vx: rand(-8, 8),
+          vy: objects[objects.length - 1].vy + rand(-10, 10),
+          age: 0, rot: 0, vrot: 0,
+          pulse: Math.random() * 6.28,
+          consumed: false, flash: 0,
+          r: (11 + Math.random() * 2) * SCALE,
+          hue: 190 + Math.random() * 10,
+          ripeness: 0,
+          ripeRate: rand(0.10, 0.18) + clamp(runTime / 90, 0, 1) * 0.06,
+          ripeWarn: false,
+        };
+        objects.push(o);
+      }
+    }
+  }
+
+  // Object update + collision
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const o = objects[i];
+    o.y += o.vy * sdt;
+    o.x += o.vx * sdt;
+    o.rot += o.vrot * sdt;
+    o.age += dt;
+    o.pulse += dt * 3;
+    o.flash *= Math.pow(0.001, dt);
+
+    if (o.y > H + 100) { objects.splice(i, 1); continue; }
+
+    if (o.consumed) { objects.splice(i, 1); continue; }
+
+    // RIPENING: orbs slowly shift color (cyan → amber → magenta) then transform into blade
+    if (o.type === T_ORB) {
+      o.ripeness = Math.min(1, o.ripeness + o.ripeRate * dt);
+      // Color lerp: 0..0.5 cyan→amber, 0.5..1 amber→magenta
+      if (o.ripeness < 0.5) {
+        o.hue = lerp(192, 38, o.ripeness * 2);
+      } else {
+        o.hue = lerp(38, 340, (o.ripeness - 0.5) * 2);
+      }
+      // Warning chirp once near full ripeness
+      if (!o.ripeWarn && o.ripeness > 0.72) {
+        o.ripeWarn = true;
+        sfxRipen(o.y / H);
+      }
+      // Full ripeness → metamorphose into a blade
+      if (o.ripeness >= 1) {
+        o.type = T_BLADE;
+        o.r = 22 * SCALE;
+        o.spikes = 6;
+        o.hue = 340;
+        o.vrot = rand(2.6, 4.2) * (Math.random() < 0.5 ? -1 : 1);
+        burst(o.x, o.y, 340, 16, 260, 0.55);
+        wave(o.x, o.y, 340, 4, 44, 0.4);
+        continue;
+      }
+    }
+
+    if (o.type === T_ORB) {
+      // Head OR recent thread segments collect
+      let hit = false;
+      const rThresh = (o.r + 8 * SCALE);
+      if (dist2(head.x, head.y, o.x, o.y) < rThresh * rThresh) hit = true;
+      else {
+        const segCount = Math.min(8, thread.length);
+        const rT2 = (o.r + 5 * SCALE) * (o.r + 5 * SCALE);
+        for (let j = thread.length - 1; j >= thread.length - segCount && j >= 0; j--) {
+          if (dist2(thread[j].x, thread[j].y, o.x, o.y) < rT2) { hit = true; break; }
+        }
+      }
+      if (hit) collectOrb(o);
+    } else if (o.type === T_RING) {
+      const dR = dist2(head.x, head.y, o.x, o.y);
+      if (dR < o.innerR * o.innerR) passRing(o);
+    } else if (o.type === T_BLADE) {
+      if (invuln <= 0) {
+        const r = o.r * 0.82;
+        if (dist2(head.x, head.y, o.x, o.y) < r * r) {
+          o.consumed = true;
+          burst(o.x, o.y, 340, 28, 380, 1.0);
+          endGame('Sliced', 340);
+          return;
+        }
+      }
+    }
+  }
+
+  // TROPHY UPDATE — magnetic flight toward head, chain-collect on arrival
+  for (let i = trophies.length - 1; i >= 0; i--) {
+    const t = trophies[i];
+    t.age += dt;
+
+    const dx = head.x - t.x;
+    const dy = head.y - t.y;
+    const dist = Math.hypot(dx, dy);
+
+    // Collection threshold (slightly generous so chains feel reliable)
+    const collectDist = 16 * SCALE;
+    if (dist < collectDist || t.life <= 0) {
+      collectTrophy(t);
+      trophies.splice(i, 1);
+      continue;
+    }
+
+    // Magnetic attraction: acceleration ramps up with age so collection is guaranteed within ~0.8s
+    if (dist > 0.5) {
+      const accelBase = 2400 * t.magnetStrength;
+      const accelRamp = 1 + t.age * 2.6;
+      const accel = accelBase * accelRamp;
+      t.vx += (dx / dist) * accel * dt;
+      t.vy += (dy / dist) * accel * dt;
+    }
+    // Light damping prevents wild oscillation if head darts away
+    const damp = Math.pow(0.25, dt);
+    t.vx *= damp;
+    t.vy *= damp;
+
+    t.x += t.vx * dt;
+    t.y += t.vy * dt;
+    t.rot += t.vrot * dt;
+
+    // Trail: record current position with short lifetime
+    t.trail.push({ x: t.x, y: t.y, life: 0.28 });
+    for (const tp of t.trail) tp.life -= dt;
+    while (t.trail.length > 0 && t.trail[0].life <= 0) t.trail.shift();
+
+    t.life -= dt;
+  }
+
+  // RESONANCE WINDOW (every ~45-65s, lasts 6.5s)
+  if (resonance) {
+    resonanceT -= dt;
+    if (resonanceT <= 0) {
+      resonance = false;
+      nextResonanceT = 45 + rand(0, 20);
+      $resonance.classList.remove('show');
+      setTimeout(() => $resonance.classList.add('hidden'), 600);
+    }
+  } else {
+    nextResonanceT -= dt;
+    if (nextResonanceT <= 0) {
+      resonance = true;
+      resonanceT = RESONANCE_DUR;
+      $resonance.classList.remove('hidden');
+      // Force reflow then animate in
+      void $resonance.offsetWidth;
+      $resonance.classList.add('show');
+      sfxResonance();
+      vibrate([12, 40, 12]);
+      // Visual: gold ring sweep from center
+      wave(W / 2, H / 2, 50, 30, Math.max(W, H) * 0.9, 1.4);
+      burst(W / 2, H / 2, 50, 22, 180, 1.1);
+      // Auto-hide overlay after a moment (the gold tint stays)
+      setTimeout(() => {
+        if (state === ST.PLAYING) $resonance.classList.remove('show');
+      }, 1800);
+    }
+  }
+
+  // LOOP DETECTION: does the most recent segment intersect an older one?
+  // Test segment: thread[len-2] -> thread[len-1]  (guaranteed > 1px by push rule)
+  if (thread.length > LOOP_CHECK_GAP + 4 && down) {
+    const lastIdx = thread.length - 1;
+    const a = thread[lastIdx - 1];
+    const b = thread[lastIdx];
+    const minArea = LOOP_MIN_AREA_BASE * SCALE * SCALE;
+    for (let i = thread.length - LOOP_CHECK_GAP - 2; i >= 0; i--) {
+      const c = thread[i];
+      const d = thread[i + 1];
+      const inter = segIntersect(a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y);
+      if (inter) {
+        // Build polygon: inter -> thread[i+1] -> ... -> thread[lastIdx-1] -> inter
+        const poly = [{ x: inter.x, y: inter.y }];
+        for (let k = i + 1; k <= lastIdx - 1; k++) {
+          poly.push({ x: thread[k].x, y: thread[k].y });
+        }
+        if (poly.length >= 3) {
+          const area = polyArea(poly);
+          const threshold = resonance ? minArea * 0.55 : minArea;
+          if (area > threshold) {
+            closeLoop(poly, area, inter, i);
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  // Drone pitch modulation (thread as instrument)
+  modulateDrone(head.y);
+}
+
+function collectOrb(o) {
+  o.consumed = true;
+  combo++;
+  comboT = 2.6;
+  maxCombo = Math.max(maxCombo, combo);
+  const comboMult = 1 + Math.floor(combo / 3);
+  // Ripeness multiplier: 1× (cyan) → 3× (just before turning)
+  const ripeMult = 1 + (o.ripeness || 0) * 2;
+  const pts = Math.floor(10 * comboMult * ripeMult);
+  score += pts;
+  threadLen = clamp(threadLen + LEN_GAIN_ORB + (o.ripeness || 0) * 5, 0, LEN_MAX);
+  glow = 1;
+
+  // Visual scales with ripeness
+  burst(o.x, o.y, o.hue, 14 + Math.floor((o.ripeness || 0) * 10), 220 + (o.ripeness || 0) * 80, 0.75);
+  wave(o.x, o.y, o.hue, 6, 56, 0.45);
+  const popColor = ripeMult > 1.8 ? '#ffd76b' : (comboMult > 1 ? '#ffd76b' : '#9eeaff');
+  popup(o.x, o.y - 8, '+' + pts, popColor);
+
+  sfxOrb(combo, o.y / H);
+  vibrate(7);
+  refreshComboUI();
+}
+
+// CLOSE A LOOP: convert objects inside into magnetic trophies that fly to the head.
+// The closure moment itself is the cinematic beat; the trophies chain in as bright bells.
+function closeLoop(poly, area, inter, segIdx) {
+  let captured = 0;
+
+  // Centroid of polygon (for closure popup + audio pitch)
+  let cx = 0, cy = 0;
+  for (const p of poly) { cx += p.x; cy += p.y; }
+  cx /= poly.length; cy /= poly.length;
+
+  // Convert objects inside the polygon → trophies launched from each origin
+  for (const o of objects) {
+    if (o.consumed) continue;
+    if (!pointInPoly(o.x, o.y, poly)) continue;
+
+    let value, typeName;
+    if (o.type === T_BLADE) {
+      value = 120;
+      typeName = 'blade';
+    } else if (o.type === T_RING) {
+      value = 90;
+      typeName = 'ring';
+    } else if (o.type === T_ORB) {
+      // Ripe orbs are worth more
+      value = Math.floor(48 + (o.ripeness || 0) * 38);
+      typeName = 'orb';
+    } else {
+      continue;
+    }
+
+    if (resonance) value = Math.floor(value * 2);
+
+    // Initial velocity: random upward/outward burst, will be overridden by magnetic acceleration
+    const launchAngle = Math.atan2(o.y - cy, o.x - cx) + rand(-0.4, 0.4);
+    const launchSpd = 80 + Math.random() * 100;
+    trophies.push({
+      x: o.x, y: o.y,
+      vx: Math.cos(launchAngle) * launchSpd + rand(-20, 20),
+      vy: Math.sin(launchAngle) * launchSpd - 40,   // bias slightly upward
+      hue: 50,
+      rot: Math.random() * 6.28,
+      vrot: rand(-5, 5),
+      life: 1.6,
+      value,
+      age: 0,
+      type: typeName,
+      trail: [],
+      // Random magnetic strength → some trophies are "lazier," staggering arrivals
+      magnetStrength: 0.65 + Math.random() * 0.7,
+    });
+
+    // Small "extraction" burst at origin (visual that the object was converted, not just deleted)
+    burst(o.x, o.y, 50, 12, 200, 0.5);
+    wave(o.x, o.y, 50, 4, 32, 0.4);
+
+    o.consumed = true;
+    captured++;
+  }
+
+  // Closure popup
+  let labelText;
+  let popColor;
+  if (captured > 1) { labelText = '◯ LOOP × ' + captured; popColor = '#ffffff'; }
+  else if (captured === 1) { labelText = '◯ LOOP'; popColor = '#ffffff'; }
+  else { labelText = '◯ EMPTY LOOP'; popColor = '#ffd76b'; }
+  popup(cx, cy, labelText, popColor);
+
+  // Empty-loop gets a flat consolation score so it still feels meaningful
+  if (captured === 0) {
+    const pts = 15;
+    score += pts;
+    popup(cx, cy + 26, '+' + pts, '#ffd76b');
+  }
+  // (when captured > 0, points come from the trophy chain, not a single popup)
+
+  // Sound + haptic for the closure itself
+  sfxLoop(cy / H, captured, resonance);
+  vibrate([8, 12, 28]);
+
+  // Visual: white-gold polygon flash
+  loopFlashes.push({
+    poly: poly.map(p => ({ x: p.x, y: p.y })),
+    life: 1.0,
+    maxLife: 1.0,
+    captured,
+    isResonance: resonance,
+  });
+
+  // Truncate the thread: the encircling portion is consumed by the loop.
+  const newThread = [];
+  for (let k = 0; k <= segIdx; k++) {
+    newThread.push(thread[k]);
+  }
+  newThread.push({ x: inter.x, y: inter.y });
+  thread = newThread;
+
+  // Slight thread length cost (loops cost some line, but big captures refill it via trophies)
+  threadLen = Math.max(LEN_MIN + 6, threadLen - 5);
+
+  glow = 1;
+  shake = Math.max(shake, captured > 0 ? 6 : 3);
+  totalLoops++;
+}
+
+// COLLECT A TROPHY: chain note + small burst + combo bump
+function collectTrophy(t) {
+  combo++;
+  comboT = 3.5;  // long combo window so the whole chain holds together
+  maxCombo = Math.max(maxCombo, combo);
+  const mult = 1 + Math.floor(combo / 3);
+  const pts = t.value * mult;
+  score += pts;
+  threadLen = clamp(threadLen + (t.type === 'blade' ? 6 : 4), 0, LEN_MAX);
+  glow = Math.min(1, glow + 0.35);
+
+  burst(t.x, t.y, 50, 10, 180, 0.45);
+  popup(t.x, t.y - 6, '+' + pts, '#ffd76b');
+
+  sfxTrophy(combo, t.y / H);
+  vibrate(4);
+  refreshComboUI();
+}
+
+function passRing(o) {
+  o.consumed = true;
+  combo += 2;
+  comboT = 2.6;
+  maxCombo = Math.max(maxCombo, combo);
+  const mult = 1 + Math.floor(combo / 3);
+  const pts = 35 * mult;
+  score += pts;
+  threadLen = clamp(threadLen + LEN_GAIN_RING, 0, LEN_MAX);
+  glow = 1;
+
+  burst(o.x, o.y, o.hue, 22, 320, 1.0);
+  wave(o.x, o.y, o.hue, o.r, o.r * 3.2, 0.7);
+  popup(o.x, o.y - 8, '+' + pts + '!', '#ffd76b');
+
+  sfxRing();
+  vibrate(18);
+  refreshComboUI();
+}
+
+function refreshComboUI() {
+  if (combo > 1) {
+    $combo.textContent = combo + ' chain';
+    if (combo >= 6) {
+      $combo.classList.add('hot');
+      $score.className = combo >= 12 ? 'score rose' : 'score gold';
+    } else {
+      $combo.classList.remove('hot');
+      $score.className = 'score';
+    }
+    const mult = 1 + Math.floor(combo / 3);
+    if (mult > 1) {
+      $mult.textContent = '×' + mult;
+      $mult.classList.add('show');
+    } else {
+      $mult.classList.remove('show');
+    }
+  } else {
+    $combo.textContent = '';
+    $combo.classList.remove('hot');
+    $score.className = 'score';
+    $mult.classList.remove('show');
+  }
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render() {
+  // Background
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#040611');
+  bg.addColorStop(0.5, '#070b1a');
+  bg.addColorStop(1, '#0b1426');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle radial vignette glow at top
+  const vg = ctx.createRadialGradient(W / 2, -H * 0.3, 0, W / 2, -H * 0.3, H * 0.9);
+  vg.addColorStop(0, 'rgba(60, 100, 180, 0.10)');
+  vg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Resonance vignette (gold tint when the window is active)
+  if (resonance && (state === ST.PLAYING || state === ST.DYING)) {
+    const t = resonanceT / RESONANCE_DUR;
+    const fadeIn = 1 - Math.pow(1 - clamp((RESONANCE_DUR - resonanceT) / 0.5, 0, 1), 2);
+    const fadeOut = clamp(t * 2, 0, 1);
+    const intensity = Math.min(fadeIn, fadeOut);
+    const pulse = 0.7 + Math.sin(stateT * 4.2) * 0.3;
+    const rg = ctx.createRadialGradient(W/2, H/2, Math.min(W, H) * 0.15, W/2, H/2, Math.max(W, H) * 0.75);
+    rg.addColorStop(0, 'rgba(255, 215, 107, 0)');
+    rg.addColorStop(1, `rgba(255, 215, 107, ${0.13 * pulse * intensity})`);
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Shake transform
+  let sx = 0, sy = 0;
+  if (shake > 0) {
+    sx = (Math.random() - 0.5) * shake;
+    sy = (Math.random() - 0.5) * shake;
+  }
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // Background particles (slow drift up)
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of bgParts) {
+    const tw = 0.6 + Math.sin(p.tw) * 0.4;
+    ctx.fillStyle = `rgba(180, 220, 255, ${p.a * tw})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  if (state === ST.MENU) renderMenu();
+  else if (state === ST.PLAYING || state === ST.DYING || state === ST.OVER) renderGame();
+
+  ctx.restore();
+
+  // Flash overlay
+  if (flashA > 0.01) {
+    ctx.fillStyle = `rgba(${flashR}, ${flashG}, ${flashB}, ${flashA})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function renderMenu() {
+  if (menuPath.length < 2) return;
+  drawThreadGlow(menuPath, 190, 1.0, false);
+}
+
+function renderGame() {
+  ctx.globalCompositeOperation = 'lighter';
+
+  // Loop flashes (drawn underneath everything else so objects pop above)
+  for (const lf of loopFlashes) {
+    if (lf.poly.length < 3) continue;
+    const a = lf.life / lf.maxLife;
+    const easeOut = 1 - Math.pow(1 - a, 2);
+
+    // Soft fill (gold-white)
+    ctx.fillStyle = lf.isResonance
+      ? `rgba(255, 230, 150, ${a * a * 0.30})`
+      : `rgba(255, 240, 200, ${a * a * 0.22})`;
+    ctx.beginPath();
+    ctx.moveTo(lf.poly[0].x, lf.poly[0].y);
+    for (let k = 1; k < lf.poly.length; k++) {
+      ctx.lineTo(lf.poly[k].x, lf.poly[k].y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Wide gold halo outline
+    ctx.strokeStyle = `rgba(255, 215, 107, ${easeOut * 0.55})`;
+    ctx.lineWidth = (12 * SCALE) * a;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(lf.poly[0].x, lf.poly[0].y);
+    for (let k = 1; k < lf.poly.length; k++) {
+      ctx.lineTo(lf.poly[k].x, lf.poly[k].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Crisp inner white outline (the moment of closure)
+    ctx.strokeStyle = `rgba(255, 255, 255, ${easeOut * 0.95})`;
+    ctx.lineWidth = (1.8 + 2.2 * a) * SCALE;
+    ctx.beginPath();
+    ctx.moveTo(lf.poly[0].x, lf.poly[0].y);
+    for (let k = 1; k < lf.poly.length; k++) {
+      ctx.lineTo(lf.poly[k].x, lf.poly[k].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  // Waves (expanding rings from collect)
+  for (const w of waves) {
+    const t = 1 - w.life / w.maxLife;
+    const r = lerp(w.r1, w.r2, t);
+    const a = (1 - t) * 0.6;
+    ctx.strokeStyle = `hsla(${w.hue}, 100%, 72%, ${a})`;
+    ctx.lineWidth = 2 * SCALE;
+    ctx.beginPath();
+    ctx.arc(w.x, w.y, r, 0, 6.283);
+    ctx.stroke();
+    ctx.strokeStyle = `hsla(${w.hue}, 100%, 88%, ${a * 0.35})`;
+    ctx.lineWidth = 9 * SCALE;
+    ctx.beginPath();
+    ctx.arc(w.x, w.y, r, 0, 6.283);
+    ctx.stroke();
+  }
+
+  // Objects
+  for (const o of objects) {
+    if (o.type === T_ORB) drawOrb(o);
+    else if (o.type === T_RING) drawRing(o);
+    else if (o.type === T_BLADE) drawBlade(o);
+  }
+
+  // Trophies (flying gold sparkles from loops)
+  for (const t of trophies) drawTrophy(t);
+
+  // Particles
+  for (const p of particles) {
+    const a = p.life / p.maxLife;
+    ctx.fillStyle = `hsla(${p.hue}, ${p.sat}%, ${p.lit}%, ${a * 0.95})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * (0.5 + a * 0.7), 0, 6.283);
+    ctx.fill();
+  }
+
+  // Fragments (after thread snap)
+  for (const f of fragments) {
+    const a = f.life / f.maxLife;
+    const c = Math.cos(f.angle), s = Math.sin(f.angle);
+    const hl = f.len * 0.5;
+    const x1 = f.x - c * hl, y1 = f.y - s * hl;
+    const x2 = f.x + c * hl, y2 = f.y + s * hl;
+    ctx.strokeStyle = `hsla(195, 100%, 80%, ${a * 0.3})`;
+    ctx.lineWidth = 8 * SCALE * a;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = `hsla(195, 100%, 90%, ${a})`;
+    ctx.lineWidth = 2 * SCALE;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+
+  // Thread (player)
+  if (state === ST.PLAYING) {
+    if (thread.length >= 2) {
+      // Color: cyan -> gold with combo, redshift with tension
+      let hue = 192;
+      if (combo > 0) hue = lerp(192, 45, clamp(combo / 14, 0, 1));
+      const tensionMix = clamp((tension - 1.2) / 1.3, 0, 1);
+      hue = lerp(hue, 0, tensionMix);
+      drawThreadGlow(thread, hue, 1 + glow * 0.4, true);
+
+      // Head bright spot
+      const lit = 88 + glow * 8;
+      ctx.fillStyle = `hsla(${hue}, 100%, ${lit}%, 1)`;
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, (3 + glow * 2) * SCALE, 0, 6.283);
+      ctx.fill();
+      // Head halo
+      const grd = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 28 * SCALE);
+      grd.addColorStop(0, `hsla(${hue}, 100%, 80%, ${0.5 + glow * 0.4})`);
+      grd.addColorStop(1, `hsla(${hue}, 100%, 60%, 0)`);
+      ctx.fillStyle = grd;
+      ctx.fillRect(head.x - 30 * SCALE, head.y - 30 * SCALE, 60 * SCALE, 60 * SCALE);
+    }
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Popups (above everything)
+  for (const p of popups) {
+    const a = p.life / p.maxLife;
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = a;
+    ctx.font = `300 ${20 * SCALE}px 'Geist Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 12;
+    ctx.fillText(p.text, p.x, p.y);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
+
+  // Subtle thread-length indicator (vertical bar, right edge)
+  if (state === ST.PLAYING) {
+    const barH = H * 0.35;
+    const barTop = (H - barH) / 2;
+    const bx = W - 14;
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(bx, barTop, 2, barH);
+    const fill = clamp((threadLen - LEN_MIN) / (LEN_MAX - LEN_MIN), 0, 1);
+    const grd = ctx.createLinearGradient(0, barTop, 0, barTop + barH);
+    grd.addColorStop(0, 'rgba(255,255,255,0.7)');
+    grd.addColorStop(1, 'rgba(110, 226, 255, 0.7)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(bx, barTop + barH * (1 - fill), 2, barH * fill);
+    // Tension warning hint
+    if (tension > 1.5) {
+      const tA = clamp((tension - 1.5) / (TENSION_SNAP - 1.5), 0, 1);
+      ctx.strokeStyle = `rgba(255, 100, 130, ${tA * 0.6})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(2, 2, W - 4, H - 4);
+    }
+  }
+}
+
+function drawThreadGlow(points, hue, intensity, withTaper) {
+  if (points.length < 2) return;
+
+  // Build path once
+  function trace() {
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length - 1; i++) {
+      const xc = (points[i].x + points[i + 1].x) * 0.5;
+      const yc = (points[i].y + points[i + 1].y) * 0.5;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+    }
+    const last = points[points.length - 1];
+    ctx.lineTo(last.x, last.y);
+  }
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Outer aura
+  ctx.strokeStyle = `hsla(${hue}, 95%, 65%, ${0.08 * intensity})`;
+  ctx.lineWidth = 22 * SCALE;
+  trace(); ctx.stroke();
+
+  // Mid
+  ctx.strokeStyle = `hsla(${hue}, 100%, 72%, ${0.22 * intensity})`;
+  ctx.lineWidth = 11 * SCALE;
+  trace(); ctx.stroke();
+
+  // Inner
+  ctx.strokeStyle = `hsla(${hue}, 100%, 85%, ${0.55 * intensity})`;
+  ctx.lineWidth = 4.5 * SCALE;
+  trace(); ctx.stroke();
+
+  // Bright core (white)
+  ctx.strokeStyle = `hsla(${hue}, 100%, 97%, ${0.95 * intensity})`;
+  ctx.lineWidth = 1.6 * SCALE;
+  trace(); ctx.stroke();
+}
+
+function drawOrb(o) {
+  const rip = o.ripeness || 0;
+  const pulseFreq = 1 + rip * 4;        // faster pulse when ripening
+  const pulseAmp = 0.12 + rip * 0.22;    // bigger pulse
+  const pulse = Math.sin(o.pulse * pulseFreq) * pulseAmp + 1;
+  const r = o.r * pulse;
+  const f = o.flash;
+
+  // Outer radial glow (intensifies with ripeness)
+  const g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, r * 3.2);
+  g.addColorStop(0, `hsla(${o.hue}, 100%, ${72 + f * 10 + rip * 6}%, ${0.55 + f * 0.3 + rip * 0.25})`);
+  g.addColorStop(0.45, `hsla(${o.hue}, 100%, 60%, ${0.12 + rip * 0.10})`);
+  g.addColorStop(1, `hsla(${o.hue}, 100%, 50%, 0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r * 3.2, 0, 6.283);
+  ctx.fill();
+
+  // Outer ring (subtle structure)
+  ctx.strokeStyle = `hsla(${o.hue}, 100%, 80%, ${0.5 + rip * 0.3})`;
+  ctx.lineWidth = (1.2 + rip * 0.5) * SCALE;
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r, 0, 6.283);
+  ctx.stroke();
+
+  // Core
+  const cg = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, r);
+  cg.addColorStop(0, `hsla(${o.hue}, 100%, 96%, 1)`);
+  cg.addColorStop(0.5, `hsla(${o.hue}, 100%, 80%, 0.85)`);
+  cg.addColorStop(1, `hsla(${o.hue}, 100%, 60%, 0.3)`);
+  ctx.fillStyle = cg;
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r * 0.65, 0, 6.283);
+  ctx.fill();
+}
+
+function drawRing(o) {
+  const pulse = Math.sin(o.pulse) * 0.04 + 1;
+  const r = o.r * pulse;
+
+  // Wide soft outer glow
+  ctx.strokeStyle = `hsla(${o.hue}, 100%, 70%, 0.10)`;
+  ctx.lineWidth = 26 * SCALE;
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r, 0, 6.283);
+  ctx.stroke();
+
+  // Mid ring
+  ctx.strokeStyle = `hsla(${o.hue}, 100%, 76%, 0.35)`;
+  ctx.lineWidth = 10 * SCALE;
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r, 0, 6.283);
+  ctx.stroke();
+
+  // Core ring
+  ctx.strokeStyle = `hsla(${o.hue}, 100%, 92%, 0.95)`;
+  ctx.lineWidth = 2 * SCALE;
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r, 0, 6.283);
+  ctx.stroke();
+
+  // Rotating decoration markers
+  ctx.fillStyle = `hsla(${o.hue}, 100%, 96%, 0.85)`;
+  for (let i = 0; i < 6; i++) {
+    const a = o.rot + (Math.PI * 2 / 6) * i;
+    const x = o.x + Math.cos(a) * r;
+    const y = o.y + Math.sin(a) * r;
+    ctx.beginPath();
+    ctx.arc(x, y, 2.4 * SCALE, 0, 6.283);
+    ctx.fill();
+  }
+}
+
+function drawBlade(o) {
+  const breathing = Math.sin(o.age * 8) * 0.06 + 1;
+  const r = o.r * breathing;
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  ctx.rotate(o.rot);
+
+  // Threatening radial glow
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 2.2);
+  g.addColorStop(0, `hsla(${o.hue}, 100%, 65%, 0.55)`);
+  g.addColorStop(0.5, `hsla(${o.hue}, 100%, 55%, 0.18)`);
+  g.addColorStop(1, `hsla(${o.hue}, 100%, 45%, 0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 2.2, 0, 6.283);
+  ctx.fill();
+
+  // Sharp star
+  const sp = o.spikes;
+  ctx.beginPath();
+  for (let i = 0; i < sp * 2; i++) {
+    const rad = i % 2 === 0 ? r : r * 0.42;
+    const a = (Math.PI * 2 / (sp * 2)) * i - Math.PI / 2;
+    const x = Math.cos(a) * rad;
+    const y = Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+  sg.addColorStop(0, `hsla(${o.hue}, 100%, 75%, 1)`);
+  sg.addColorStop(1, `hsla(${o.hue}, 100%, 40%, 0.95)`);
+  ctx.fillStyle = sg;
+  ctx.fill();
+  ctx.strokeStyle = `hsla(${o.hue}, 100%, 94%, 1)`;
+  ctx.lineWidth = 1.3 * SCALE;
+  ctx.stroke();
+
+  // Inner bright core
+  ctx.fillStyle = `hsla(${o.hue}, 100%, 95%, 0.9)`;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.18, 0, 6.283);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawTrophy(t) {
+  const dx = head.x - t.x;
+  const dy = head.y - t.y;
+  const dist = Math.hypot(dx, dy);
+  // Brightness intensifies as it nears the head (anticipating collection)
+  const proximity = 1 - clamp(dist / 200, 0, 1);
+
+  // Trail (faded gold streaks behind the trophy)
+  for (let i = 0; i < t.trail.length; i++) {
+    const tp = t.trail[i];
+    const a = clamp(tp.life / 0.28, 0, 1);
+    const r = (3.5 * SCALE) * a;
+    ctx.fillStyle = `hsla(50, 100%, 80%, ${a * 0.55})`;
+    ctx.beginPath();
+    ctx.arc(tp.x, tp.y, r, 0, 6.283);
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  ctx.rotate(t.rot);
+
+  // Outer glow halo
+  const haloR = (22 + proximity * 10) * SCALE;
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
+  g.addColorStop(0, `rgba(255, 240, 180, ${0.85 + proximity * 0.15})`);
+  g.addColorStop(0.4, 'rgba(255, 215, 107, 0.45)');
+  g.addColorStop(1, 'rgba(255, 215, 107, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, haloR, 0, 6.283);
+  ctx.fill();
+
+  // 4-pointed sparkle star
+  const r = (7 + proximity * 1.5) * SCALE;
+  const r2 = 2 * SCALE;
+  ctx.fillStyle = '#fff5d8';
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (Math.PI / 4) * i;
+    const rad = i % 2 === 0 ? r : r2;
+    const x = Math.cos(a) * rad;
+    const y = Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Bright white pinhole core
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(0, 0, 1.8 * SCALE, 0, 6.283);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame((t) => { lastT = t; frame(t); });
+
+// Show menu initially
+showMenu();
+
+})();
+</script>
+</body>
+</html>

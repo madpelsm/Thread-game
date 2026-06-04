@@ -320,6 +320,37 @@
 
   .combo-label.hot { color: rgba(255, 215, 107, 0.85); }
 
+  .res-charge {
+    width: clamp(100px, 26vw, 154px);
+    height: 3px;
+    margin-top: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(232, 238, 248, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(232, 238, 248, 0.06);
+    opacity: 0.68;
+    transition: opacity 0.25s, box-shadow 0.25s;
+  }
+
+  .res-charge-fill {
+    width: 100%;
+    height: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
+    background: linear-gradient(90deg, var(--cyan), rgba(255,255,255,0.95), var(--gold));
+    box-shadow: 0 0 16px rgba(110, 226, 255, 0.6);
+    transition: transform 0.18s ease-out;
+  }
+
+  .res-charge.hot {
+    opacity: 0.95;
+    box-shadow: 0 0 18px rgba(255, 215, 107, 0.16), inset 0 0 0 1px rgba(255, 215, 107, 0.18);
+  }
+
+  .res-charge.full .res-charge-fill {
+    box-shadow: 0 0 24px rgba(255, 215, 107, 0.75);
+  }
+
   .best-corner {
     position: absolute;
     top: max(env(safe-area-inset-top), 18px);
@@ -483,6 +514,7 @@
     <div class="mult" id="mult">×2</div>
   </div>
   <div class="combo-label" id="combo"></div>
+  <div class="res-charge" id="res-charge"><div class="res-charge-fill" id="res-charge-fill"></div></div>
 </div>
 <div class="best-corner hidden" id="best-corner">
   Best<b id="best-num">0</b>
@@ -562,6 +594,8 @@ const $hud      = $('hud');
 const $score    = $('score');
 const $mult     = $('mult');
 const $combo    = $('combo');
+const $resCharge = $('res-charge');
+const $resFill  = $('res-charge-fill');
 const $best     = $('best-corner');
 const $bestNum  = $('best-num');
 const $menu     = $('menu');
@@ -893,11 +927,17 @@ const LOOP_MIN_AREA_BASE = 1100;   // px^2 minimum at SCALE=1; scales with SCALE
 const LOOP_CHECK_GAP = 5;          // skip this many newest segments to avoid micro-loops
 let totalLoops = 0;
 
-// Resonance window (every ~45-65s, 6.5s duration)
+// Resonance window: filled by risky late orb captures, then released as a one-shot wave.
 let resonance = false;
 let resonanceT = 0;
-let nextResonanceT = 32;
 const RESONANCE_DUR = 6.5;
+let resonanceSweep = null;  // one-shot outward capture wave at resonance start
+let resonanceCharge = 0;
+let resonanceChargeDisplay = 0;
+let resonanceChargePulse = 0;
+
+const RIPE_RATE_MIN = 0.09;
+const RIPE_RATE_MAX = 0.30;
 
 // Drone pitch modulation (driven by head Y position)
 let dronePitchCurrent = 0;
@@ -1022,7 +1062,8 @@ function spawn() {
     // ripeRate of 0.10 = ~10 seconds to fully ripen (very slow, safe)
     // ripeRate of 0.28 = ~3.5 seconds to fully ripen (urgent)
     o.ripeness = 0;
-    o.ripeRate = rand(0.10, 0.20) + d * 0.08;  // gets faster with difficulty
+    o.ripeRate = randomRipeRate(d);
+    o.ripeSpin = Math.random() * 6.28;
     o.ripeWarn = false;
   } else if (type === T_RING) {
     o.r = (38 + Math.random() * 8) * SCALE;
@@ -1084,6 +1125,131 @@ function popup(x, y, text, color) {
 
 function wave(x, y, hue, r1, r2, life) {
   waves.push({ x, y, r1, r2, life, maxLife: life, hue });
+}
+
+function ripeRateNorm(o) {
+  return clamp(((o.ripeRate || RIPE_RATE_MIN) - RIPE_RATE_MIN) / (RIPE_RATE_MAX - RIPE_RATE_MIN), 0, 1);
+}
+
+function randomRipeRate(d, cluster = false) {
+  const roll = Math.random();
+  let rate;
+  if (roll < 0.42) rate = rand(0.09, 0.135);
+  else if (roll < 0.82) rate = rand(0.135, 0.205);
+  else rate = rand(0.205, 0.27);
+  rate += d * (cluster ? 0.045 : 0.06);
+  return clamp(rate, RIPE_RATE_MIN, RIPE_RATE_MAX);
+}
+
+function refreshResonanceUI() {
+  const fill = resonance ? 1 : resonanceChargeDisplay;
+  $resFill.style.transform = `scaleX(${clamp(fill, 0, 1)})`;
+  $resCharge.classList.toggle('hot', fill > 0.68 || resonanceChargePulse > 0.2);
+  $resCharge.classList.toggle('full', resonance || fill > 0.98);
+}
+
+function addResonanceCharge(o, x, y) {
+  if (resonance || state !== ST.PLAYING) return;
+
+  const rip = clamp(o.ripeness || 0, 0, 1);
+  const speed = ripeRateNorm(o);
+  const gain = 0.018 + Math.pow(rip, 1.65) * (0.205 + speed * 0.075);
+  resonanceCharge = clamp(resonanceCharge + gain, 0, 1);
+  resonanceChargePulse = 1;
+
+  if (rip > 0.58) {
+    wave(x, y, 50, 10, 34 + rip * 38, 0.34);
+    burst(x, y, 50, 4 + Math.floor(rip * 8), 110 + rip * 150, 0.45);
+  }
+
+  if (resonanceCharge >= 1) beginResonance();
+  else refreshResonanceUI();
+}
+
+function beginResonance() {
+  if (resonance || state !== ST.PLAYING) return;
+
+  resonance = true;
+  resonanceT = RESONANCE_DUR;
+  resonanceCharge = 0;
+  resonanceChargeDisplay = 1;
+  resonanceChargePulse = 1;
+  refreshResonanceUI();
+
+  $resonance.classList.remove('hidden');
+  // Force reflow then animate in
+  void $resonance.offsetWidth;
+  $resonance.classList.add('show');
+  sfxResonance();
+  vibrate([12, 40, 12]);
+  wave(W / 2, H / 2, 50, 30, Math.max(W, H) * 0.9, 1.4);
+  burst(W / 2, H / 2, 50, 22, 180, 1.1);
+  startResonanceSweep();
+  setTimeout(() => {
+    if (state === ST.PLAYING) $resonance.classList.remove('show');
+  }, 1800);
+}
+
+function startResonanceSweep() {
+  const cx = W / 2;
+  const cy = H / 2;
+  const targets = [];
+
+  for (const o of objects) {
+    if (o.consumed || o.type !== T_ORB) continue;
+    const r = o.r || 0;
+    if (o.x < -r || o.x > W + r || o.y < -r || o.y > H + r) continue;
+    o.resonanceSweepTarget = true;
+    targets.push({ o, caught: false });
+  }
+
+  resonanceSweep = {
+    x: cx,
+    y: cy,
+    t: 0,
+    dur: 1.35,
+    radius: 0,
+    maxRadius: Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy)) + 120 * SCALE,
+    targets,
+  };
+}
+
+function updateResonanceSweep(dt) {
+  if (!resonanceSweep) return;
+
+  const s = resonanceSweep;
+  s.t += dt;
+  const p = clamp(s.t / s.dur, 0, 1);
+  s.radius = s.maxRadius * (1 - Math.pow(1 - p, 3));
+
+  if (state === ST.PLAYING) {
+    for (const target of s.targets) {
+      if (target.caught) continue;
+      const o = target.o;
+      if (o.consumed) {
+        target.caught = true;
+        continue;
+      }
+      if (o.type !== T_ORB) {
+        o.resonanceSweepTarget = false;
+        target.caught = true;
+        continue;
+      }
+      const d = Math.hypot(o.x - s.x, o.y - s.y);
+      if (d <= s.radius + (o.r || 0)) {
+        o.resonanceSweepTarget = false;
+        target.caught = true;
+        collectOrb(o);
+      }
+    }
+  }
+
+  if (p >= 1) {
+    for (const target of s.targets) {
+      if (target.o && !target.o.consumed) target.o.resonanceSweepTarget = false;
+    }
+    resonanceSweep = null;
+  }
 }
 
 function fragmentThread() {
@@ -1155,10 +1321,14 @@ function startGame() {
   totalLoops = 0;
   resonance = false;
   resonanceT = 0;
-  nextResonanceT = 32;
+  resonanceSweep = null;
+  resonanceCharge = 0;
+  resonanceChargeDisplay = 0;
+  resonanceChargePulse = 0;
   dronePitchCurrent = 0;
   $resonance.classList.add('hidden');
   $resonance.classList.remove('show');
+  refreshResonanceUI();
 
   $menu.classList.add('gone');
   setTimeout(() => $menu.classList.add('hidden'), 400);
@@ -1281,6 +1451,7 @@ function update(dt) {
     loopFlashes[i].life -= dt;
     if (loopFlashes[i].life <= 0) loopFlashes.splice(i, 1);
   }
+  updateResonanceSweep(dt);
 
   // FX decay
   shake *= Math.pow(0.0005, dt);
@@ -1289,6 +1460,10 @@ function update(dt) {
   if (flashA < 0.005) flashA = 0;
   slowmo = lerp(slowmo, 1, 1 - Math.pow(0.05, dt));
   glow *= Math.pow(0.001, dt);
+  resonanceChargePulse *= Math.pow(0.015, dt);
+  const chargeTarget = resonance ? 1 : resonanceCharge;
+  resonanceChargeDisplay = lerp(resonanceChargeDisplay, chargeTarget, 1 - Math.pow(0.0007, dt));
+  if (state === ST.PLAYING || state === ST.DYING) refreshResonanceUI();
 
   if (state === ST.MENU) updateMenu(dt);
   else if (state === ST.PLAYING) updatePlay(dt);
@@ -1422,7 +1597,8 @@ function updatePlay(dt) {
           r: (11 + Math.random() * 2) * SCALE,
           hue: 190 + Math.random() * 10,
           ripeness: 0,
-          ripeRate: rand(0.10, 0.18) + clamp(runTime / 90, 0, 1) * 0.06,
+          ripeRate: randomRipeRate(clamp(runTime / 90, 0, 1), true),
+          ripeSpin: Math.random() * 6.28,
           ripeWarn: false,
         };
         objects.push(o);
@@ -1433,9 +1609,10 @@ function updatePlay(dt) {
   // Object update + collision
   for (let i = objects.length - 1; i >= 0; i--) {
     const o = objects[i];
-    o.y += o.vy * sdt;
-    o.x += o.vx * sdt;
-    o.rot += o.vrot * sdt;
+    const moveDt = o.resonanceSweepTarget ? 0 : sdt;
+    o.y += o.vy * moveDt;
+    o.x += o.vx * moveDt;
+    o.rot += o.vrot * (o.resonanceSweepTarget ? dt * 0.45 : sdt);
     o.age += dt;
     o.pulse += dt * 3;
     o.flash *= Math.pow(0.001, dt);
@@ -1446,28 +1623,32 @@ function updatePlay(dt) {
 
     // RIPENING: orbs slowly shift color (cyan → amber → magenta) then transform into blade
     if (o.type === T_ORB) {
-      o.ripeness = Math.min(1, o.ripeness + o.ripeRate * dt);
-      // Color lerp: 0..0.5 cyan→amber, 0.5..1 amber→magenta
-      if (o.ripeness < 0.5) {
-        o.hue = lerp(192, 38, o.ripeness * 2);
-      } else {
-        o.hue = lerp(38, 340, (o.ripeness - 0.5) * 2);
-      }
-      // Warning chirp once near full ripeness
-      if (!o.ripeWarn && o.ripeness > 0.72) {
-        o.ripeWarn = true;
-        sfxRipen(o.y / H);
-      }
-      // Full ripeness → metamorphose into a blade
-      if (o.ripeness >= 1) {
-        o.type = T_BLADE;
-        o.r = 22 * SCALE;
-        o.spikes = 6;
-        o.hue = 340;
-        o.vrot = rand(2.6, 4.2) * (Math.random() < 0.5 ? -1 : 1);
-        burst(o.x, o.y, 340, 16, 260, 0.55);
-        wave(o.x, o.y, 340, 4, 44, 0.4);
-        continue;
+      if (!o.resonanceSweepTarget) {
+        const rateN = ripeRateNorm(o);
+        o.ripeSpin = (o.ripeSpin || 0) + dt * (1.4 + rateN * 5.6);
+        o.ripeness = Math.min(1, o.ripeness + o.ripeRate * dt);
+        // Color lerp: 0..0.5 cyan→amber, 0.5..1 amber→magenta
+        if (o.ripeness < 0.5) {
+          o.hue = lerp(192, 38, o.ripeness * 2);
+        } else {
+          o.hue = lerp(38, 340, (o.ripeness - 0.5) * 2);
+        }
+        // Warning chirp once near full ripeness
+        if (!o.ripeWarn && o.ripeness > 0.72) {
+          o.ripeWarn = true;
+          sfxRipen(o.y / H);
+        }
+        // Full ripeness → metamorphose into a blade
+        if (o.ripeness >= 1) {
+          o.type = T_BLADE;
+          o.r = 22 * SCALE;
+          o.spikes = 6;
+          o.hue = 340;
+          o.vrot = rand(2.6, 4.2) * (Math.random() < 0.5 ? -1 : 1);
+          burst(o.x, o.y, 340, 16, 260, 0.55);
+          wave(o.x, o.y, 340, 4, 44, 0.4);
+          continue;
+        }
       }
     }
 
@@ -1553,33 +1734,17 @@ function updatePlay(dt) {
     t.life -= dt;
   }
 
-  // RESONANCE WINDOW (every ~45-65s, lasts 6.5s)
+  // RESONANCE WINDOW (charged by late orb captures, lasts 6.5s)
   if (resonance) {
     resonanceT -= dt;
     if (resonanceT <= 0) {
       resonance = false;
-      nextResonanceT = 45 + rand(0, 20);
+      resonanceCharge = 0;
+      resonanceChargeDisplay = 0;
+      resonanceChargePulse = 0;
+      refreshResonanceUI();
       $resonance.classList.remove('show');
       setTimeout(() => $resonance.classList.add('hidden'), 600);
-    }
-  } else {
-    nextResonanceT -= dt;
-    if (nextResonanceT <= 0) {
-      resonance = true;
-      resonanceT = RESONANCE_DUR;
-      $resonance.classList.remove('hidden');
-      // Force reflow then animate in
-      void $resonance.offsetWidth;
-      $resonance.classList.add('show');
-      sfxResonance();
-      vibrate([12, 40, 12]);
-      // Visual: gold ring sweep from center
-      wave(W / 2, H / 2, 50, 30, Math.max(W, H) * 0.9, 1.4);
-      burst(W / 2, H / 2, 50, 22, 180, 1.1);
-      // Auto-hide overlay after a moment (the gold tint stays)
-      setTimeout(() => {
-        if (state === ST.PLAYING) $resonance.classList.remove('show');
-      }, 1800);
     }
   }
 
@@ -1622,19 +1787,21 @@ function collectOrb(o) {
   comboT = 2.6;
   maxCombo = Math.max(maxCombo, combo);
   const comboMult = 1 + Math.floor(combo / 3);
-  // Ripeness multiplier: 1× (cyan) → 3× (just before turning)
-  const ripeMult = 1 + (o.ripeness || 0) * 2;
+  const rip = clamp(o.ripeness || 0, 0, 1);
+  // Ripeness multiplier: 1× (fresh cyan) → ~4.2× (just before turning)
+  const ripeMult = 1 + Math.pow(rip, 1.35) * 3.2;
   const pts = Math.floor(10 * comboMult * ripeMult);
   score += pts;
-  threadLen = clamp(threadLen + LEN_GAIN_ORB + (o.ripeness || 0) * 5, 0, LEN_MAX);
+  threadLen = clamp(threadLen + LEN_GAIN_ORB + rip * 5, 0, LEN_MAX);
   glow = 1;
 
   // Visual scales with ripeness
-  burst(o.x, o.y, o.hue, 14 + Math.floor((o.ripeness || 0) * 10), 220 + (o.ripeness || 0) * 80, 0.75);
+  burst(o.x, o.y, o.hue, 14 + Math.floor(rip * 12), 220 + rip * 95, 0.75);
   wave(o.x, o.y, o.hue, 6, 56, 0.45);
-  const popColor = ripeMult > 1.8 ? '#ffd76b' : (comboMult > 1 ? '#ffd76b' : '#9eeaff');
-  popup(o.x, o.y - 8, '+' + pts, popColor);
+  const popColor = ripeMult > 2.15 ? '#ffd76b' : (comboMult > 1 ? '#ffd76b' : '#9eeaff');
+  popup(o.x, o.y - 8, '+' + pts + (rip > 0.82 ? '!' : ''), popColor);
 
+  addResonanceCharge(o, o.x, o.y);
   sfxOrb(combo, o.y / H);
   vibrate(7);
   refreshComboUI();
@@ -1867,6 +2034,8 @@ function renderMenu() {
 function renderGame() {
   ctx.globalCompositeOperation = 'lighter';
 
+  if (resonanceSweep) drawResonanceSweep(resonanceSweep);
+
   // Loop flashes (drawn underneath everything else so objects pop above)
   for (const lf of loopFlashes) {
     if (lf.poly.length < 3) continue;
@@ -2028,6 +2197,62 @@ function renderGame() {
   }
 }
 
+function drawResonanceSweep(s) {
+  const p = clamp(s.t / s.dur, 0, 1);
+  const fadeIn = clamp(p / 0.10, 0, 1);
+  const fadeOut = 1 - Math.pow(clamp((p - 0.62) / 0.38, 0, 1), 2);
+  const a = fadeIn * fadeOut;
+  if (a <= 0.001) return;
+
+  const r = s.radius;
+  const band = (88 - p * 28) * SCALE;
+  const inner = Math.max(0, r - band * 0.55);
+  const outer = Math.max(inner + 1, r + band * 0.75);
+
+  const wash = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, Math.max(1, r));
+  wash.addColorStop(0, `rgba(255, 215, 107, ${0.055 * a * (1 - p * 0.35)})`);
+  wash.addColorStop(0.72, `rgba(110, 226, 255, ${0.018 * a})`);
+  wash.addColorStop(1, 'rgba(110, 226, 255, 0)');
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, W, H);
+
+  const halo = ctx.createRadialGradient(s.x, s.y, inner, s.x, s.y, outer);
+  halo.addColorStop(0, 'rgba(255, 215, 107, 0)');
+  halo.addColorStop(0.34, `rgba(255, 215, 107, ${0.08 * a})`);
+  halo.addColorStop(0.55, `rgba(255, 248, 220, ${0.34 * a})`);
+  halo.addColorStop(0.68, `rgba(110, 226, 255, ${0.20 * a})`);
+  halo.addColorStop(1, 'rgba(110, 226, 255, 0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = `rgba(255, 246, 210, ${0.70 * a})`;
+  ctx.lineWidth = (1.6 + (1 - p) * 2.2) * SCALE;
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, r, 0, 6.283);
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(255, 215, 107, ${0.16 * a})`;
+  ctx.lineWidth = (32 - p * 10) * SCALE;
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, r, 0, 6.283);
+  ctx.stroke();
+
+  for (const target of s.targets) {
+    if (target.caught) continue;
+    const o = target.o;
+    if (!o || o.consumed || o.type !== T_ORB) continue;
+    const d = Math.hypot(o.x - s.x, o.y - s.y);
+    const near = 1 - clamp(Math.abs(d - r) / (80 * SCALE), 0, 1);
+    if (near <= 0) continue;
+
+    ctx.strokeStyle = `rgba(255, 225, 140, ${0.46 * near * a})`;
+    ctx.lineWidth = (1 + 4 * near) * SCALE;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.r + (7 + 10 * near) * SCALE, 0, 6.283);
+    ctx.stroke();
+  }
+}
+
 function drawThreadGlow(points, hue, intensity, withTaper) {
   if (points.length < 2) return;
 
@@ -2070,11 +2295,13 @@ function drawThreadGlow(points, hue, intensity, withTaper) {
 
 function drawOrb(o) {
   const rip = o.ripeness || 0;
+  const rateN = ripeRateNorm(o);
   const pulseFreq = 1 + rip * 4;        // faster pulse when ripening
-  const pulseAmp = 0.12 + rip * 0.22;    // bigger pulse
-  const pulse = Math.sin(o.pulse * pulseFreq) * pulseAmp + 1;
+  const pulseAmp = 0.10 + rip * 0.20 + rateN * 0.05;    // bigger pulse
+  const pulse = Math.sin(o.pulse * (pulseFreq + rateN * 1.4)) * pulseAmp + 1;
   const r = o.r * pulse;
   const f = o.flash;
+  const spin = o.ripeSpin || o.pulse;
 
   // Outer radial glow (intensifies with ripeness)
   const g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, r * 3.2);
@@ -2092,6 +2319,45 @@ function drawOrb(o) {
   ctx.beginPath();
   ctx.arc(o.x, o.y, r, 0, 6.283);
   ctx.stroke();
+
+  // Ripening clock: arc length = transition progress, spin speed/markers = transition rate.
+  const meterR = r * (1.44 + rateN * 0.16);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = `rgba(232, 238, 248, ${0.08 + rip * 0.08})`;
+  ctx.lineWidth = (0.8 + rateN * 0.45) * SCALE;
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, meterR, 0, 6.283);
+  ctx.stroke();
+
+  if (rip > 0.015) {
+    ctx.strokeStyle = `hsla(${o.hue}, 100%, ${76 + rip * 14}%, ${0.44 + rip * 0.45})`;
+    ctx.lineWidth = (1.2 + rip * 1.8 + rateN * 0.5) * SCALE;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, meterR, -Math.PI / 2 + spin, -Math.PI / 2 + spin + 6.283 * rip);
+    ctx.stroke();
+  }
+
+  const markerCount = 2 + Math.round(rateN * 3);
+  const markerR = meterR + (3 + rateN * 3) * SCALE;
+  const markerA = 0.18 + rateN * 0.25 + rip * 0.32;
+  ctx.fillStyle = `rgba(255, 245, 205, ${markerA})`;
+  for (let i = 0; i < markerCount; i++) {
+    const a = spin + (6.283 / markerCount) * i;
+    const mx = o.x + Math.cos(a) * markerR;
+    const my = o.y + Math.sin(a) * markerR;
+    ctx.beginPath();
+    ctx.arc(mx, my, (0.9 + rateN * 0.9 + rip * 0.4) * SCALE, 0, 6.283);
+    ctx.fill();
+  }
+
+  if (rip > 0.72) {
+    const unstable = (rip - 0.72) / 0.28;
+    ctx.strokeStyle = `rgba(255, 215, 107, ${0.16 + unstable * 0.32})`;
+    ctx.lineWidth = (5 + unstable * 6) * SCALE;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, r * (1.95 + unstable * 0.35), 0, 6.283);
+    ctx.stroke();
+  }
 
   // Core
   const cg = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, r);

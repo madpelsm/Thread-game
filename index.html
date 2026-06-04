@@ -320,37 +320,6 @@
 
   .combo-label.hot { color: rgba(255, 215, 107, 0.85); }
 
-  .res-charge {
-    width: clamp(100px, 26vw, 154px);
-    height: 3px;
-    margin-top: 10px;
-    border-radius: 999px;
-    overflow: hidden;
-    background: rgba(232, 238, 248, 0.08);
-    box-shadow: inset 0 0 0 1px rgba(232, 238, 248, 0.06);
-    opacity: 0.68;
-    transition: opacity 0.25s, box-shadow 0.25s;
-  }
-
-  .res-charge-fill {
-    width: 100%;
-    height: 100%;
-    transform: scaleX(0);
-    transform-origin: left center;
-    background: linear-gradient(90deg, var(--cyan), rgba(255,255,255,0.95), var(--gold));
-    box-shadow: 0 0 16px rgba(110, 226, 255, 0.6);
-    transition: transform 0.18s ease-out;
-  }
-
-  .res-charge.hot {
-    opacity: 0.95;
-    box-shadow: 0 0 18px rgba(255, 215, 107, 0.16), inset 0 0 0 1px rgba(255, 215, 107, 0.18);
-  }
-
-  .res-charge.full .res-charge-fill {
-    box-shadow: 0 0 24px rgba(255, 215, 107, 0.75);
-  }
-
   .best-corner {
     position: absolute;
     top: max(env(safe-area-inset-top), 18px);
@@ -514,7 +483,6 @@
     <div class="mult" id="mult">×2</div>
   </div>
   <div class="combo-label" id="combo"></div>
-  <div class="res-charge" id="res-charge"><div class="res-charge-fill" id="res-charge-fill"></div></div>
 </div>
 <div class="best-corner hidden" id="best-corner">
   Best<b id="best-num">0</b>
@@ -540,7 +508,7 @@
 <!-- RESONANCE OVERLAY -->
 <div class="resonance hidden" id="resonance">
   <div class="resonance-label">Resonance</div>
-  <div class="resonance-sub">Loops × 2</div>
+  <div class="resonance-sub">Wave released</div>
 </div>
 
 <!-- GAME OVER -->
@@ -594,8 +562,6 @@ const $hud      = $('hud');
 const $score    = $('score');
 const $mult     = $('mult');
 const $combo    = $('combo');
-const $resCharge = $('res-charge');
-const $resFill  = $('res-charge-fill');
 const $best     = $('best-corner');
 const $bestNum  = $('best-num');
 const $menu     = $('menu');
@@ -933,8 +899,6 @@ let resonanceT = 0;
 const RESONANCE_DUR = 6.5;
 let resonanceSweep = null;  // one-shot outward capture wave at resonance start
 let resonanceCharge = 0;
-let resonanceChargeDisplay = 0;
-let resonanceChargePulse = 0;
 
 const RIPE_RATE_MIN = 0.09;
 const RIPE_RATE_MAX = 0.30;
@@ -1141,21 +1105,13 @@ function randomRipeRate(d, cluster = false) {
   return clamp(rate, RIPE_RATE_MIN, RIPE_RATE_MAX);
 }
 
-function refreshResonanceUI() {
-  const fill = resonance ? 1 : resonanceChargeDisplay;
-  $resFill.style.transform = `scaleX(${clamp(fill, 0, 1)})`;
-  $resCharge.classList.toggle('hot', fill > 0.68 || resonanceChargePulse > 0.2);
-  $resCharge.classList.toggle('full', resonance || fill > 0.98);
-}
-
 function addResonanceCharge(o, x, y) {
   if (resonance || state !== ST.PLAYING) return;
 
   const rip = clamp(o.ripeness || 0, 0, 1);
   const speed = ripeRateNorm(o);
-  const gain = 0.018 + Math.pow(rip, 1.65) * (0.205 + speed * 0.075);
+  const gain = 0.010 + Math.pow(rip, 1.85) * (0.155 + speed * 0.045);
   resonanceCharge = clamp(resonanceCharge + gain, 0, 1);
-  resonanceChargePulse = 1;
 
   if (rip > 0.58) {
     wave(x, y, 50, 10, 34 + rip * 38, 0.34);
@@ -1163,7 +1119,6 @@ function addResonanceCharge(o, x, y) {
   }
 
   if (resonanceCharge >= 1) beginResonance();
-  else refreshResonanceUI();
 }
 
 function beginResonance() {
@@ -1172,9 +1127,6 @@ function beginResonance() {
   resonance = true;
   resonanceT = RESONANCE_DUR;
   resonanceCharge = 0;
-  resonanceChargeDisplay = 1;
-  resonanceChargePulse = 1;
-  refreshResonanceUI();
 
   $resonance.classList.remove('hidden');
   // Force reflow then animate in
@@ -1323,12 +1275,9 @@ function startGame() {
   resonanceT = 0;
   resonanceSweep = null;
   resonanceCharge = 0;
-  resonanceChargeDisplay = 0;
-  resonanceChargePulse = 0;
   dronePitchCurrent = 0;
   $resonance.classList.add('hidden');
   $resonance.classList.remove('show');
-  refreshResonanceUI();
 
   $menu.classList.add('gone');
   setTimeout(() => $menu.classList.add('hidden'), 400);
@@ -1460,10 +1409,6 @@ function update(dt) {
   if (flashA < 0.005) flashA = 0;
   slowmo = lerp(slowmo, 1, 1 - Math.pow(0.05, dt));
   glow *= Math.pow(0.001, dt);
-  resonanceChargePulse *= Math.pow(0.015, dt);
-  const chargeTarget = resonance ? 1 : resonanceCharge;
-  resonanceChargeDisplay = lerp(resonanceChargeDisplay, chargeTarget, 1 - Math.pow(0.0007, dt));
-  if (state === ST.PLAYING || state === ST.DYING) refreshResonanceUI();
 
   if (state === ST.MENU) updateMenu(dt);
   else if (state === ST.PLAYING) updatePlay(dt);
@@ -1740,9 +1685,6 @@ function updatePlay(dt) {
     if (resonanceT <= 0) {
       resonance = false;
       resonanceCharge = 0;
-      resonanceChargeDisplay = 0;
-      resonanceChargePulse = 0;
-      refreshResonanceUI();
       $resonance.classList.remove('show');
       setTimeout(() => $resonance.classList.add('hidden'), 600);
     }
@@ -2174,20 +2116,8 @@ function renderGame() {
   ctx.textAlign = 'start';
   ctx.textBaseline = 'alphabetic';
 
-  // Subtle thread-length indicator (vertical bar, right edge)
+  // Tension warning hint
   if (state === ST.PLAYING) {
-    const barH = H * 0.35;
-    const barTop = (H - barH) / 2;
-    const bx = W - 14;
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.fillRect(bx, barTop, 2, barH);
-    const fill = clamp((threadLen - LEN_MIN) / (LEN_MAX - LEN_MIN), 0, 1);
-    const grd = ctx.createLinearGradient(0, barTop, 0, barTop + barH);
-    grd.addColorStop(0, 'rgba(255,255,255,0.7)');
-    grd.addColorStop(1, 'rgba(110, 226, 255, 0.7)');
-    ctx.fillStyle = grd;
-    ctx.fillRect(bx, barTop + barH * (1 - fill), 2, barH * fill);
-    // Tension warning hint
     if (tension > 1.5) {
       const tA = clamp((tension - 1.5) / (TENSION_SNAP - 1.5), 0, 1);
       ctx.strokeStyle = `rgba(255, 100, 130, ${tA * 0.6})`;

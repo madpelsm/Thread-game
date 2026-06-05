@@ -881,9 +881,12 @@ function sfxSnap() {
   tone(95, 0.7, 'sine', 0.12);
 }
 
-function sfxWarn() {
+function sfxWarn(crit) {
   if (!actx) return;
-  tone(155, 0.08, 'square', 0.05);
+  // Rising alert: pitch climbs from a low warble toward a sharp edge as the
+  // curve tightens — the audible half of the tension tightrope.
+  const c = clamp(crit || 0, 0, 1);
+  tone(190 + c * 560, 0.11, 'triangle', 0.04 + c * 0.03);
 }
 
 function vibrate(pattern) {
@@ -1019,6 +1022,8 @@ let shake = 0;
 let flashA = 0;
 let flashR = 255, flashG = 80, flashB = 120;
 let slowmo = 1;
+let warnT = 0;             // cadence timer for the rising tension alert
+let tensionSlowCool = 0;   // cooldown so near-miss slow-mo can't retrigger every frame
 
 // Background
 for (let i = 0; i < 80; i++) {
@@ -1388,6 +1393,8 @@ function startGame() {
   shake = 0;
   flashA = 0;
   slowmo = 1;
+  warnT = 0;
+  tensionSlowCool = 0;
   noteIdx = 0;
   totalLoops = 0;
   resonance = false;
@@ -1632,7 +1639,22 @@ function updatePlay(dt) {
     endGame('Too sharp', 0);
     return;
   }
-  if (tension > TENSION_SNAP * 0.78 && Math.random() < dt * 10) sfxWarn();
+  // Tension tightrope: continuous feedback that intensifies toward the snap so
+  // the edge is felt across audio + touch + time, not signalled by a random chirp.
+  const crit = clamp((tension - 1.5) / (TENSION_SNAP - 1.5), 0, 1);
+  warnT -= dt;
+  if (tension > 1.5 && warnT <= 0) {
+    sfxWarn(crit);
+    warnT = 0.42 - crit * 0.30;            // alert cadence accelerates near the edge
+  }
+  if (crit > 0 && Math.sin(runTime * 6.283 * (1.2 + crit * 6.8)) > 0.94) {
+    vibrate(2 + Math.floor(crit * 4));     // a haptic heartbeat that quickens
+  }
+  tensionSlowCool -= dt;
+  if (tension > TENSION_SNAP * 0.92 && slowmo > 0.95 && tensionSlowCool <= 0) {
+    slowmo = 0.45;                          // near-miss slow-mo — a composed recovery feels heroic
+    tensionSlowCool = 1.6;
+  }
 
   // Trail particles from head when moving
   if (down && velocity > 280 && Math.random() < dt * 26) {

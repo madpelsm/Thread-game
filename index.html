@@ -991,6 +991,7 @@ let trophies = [];        // {x, y, vx, vy, hue, rot, vrot, life, value, age, ty
 const LOOP_MIN_AREA_BASE = 1100;   // px^2 minimum at SCALE=1; scales with SCALE^2
 const LOOP_CHECK_GAP = 5;          // skip this many newest segments to avoid micro-loops
 let totalLoops = 0;
+let hyperLoopT = 0;                // hyper-loop window: open briefly after a 3+ capture
 
 // Resonance window: filled by risky late orb captures, then released as a one-shot wave.
 let resonance = false;
@@ -1397,6 +1398,7 @@ function startGame() {
   tensionSlowCool = 0;
   noteIdx = 0;
   totalLoops = 0;
+  hyperLoopT = 0;
   resonance = false;
   resonanceT = 0;
   resonanceSweep = null;
@@ -1662,6 +1664,7 @@ function updatePlay(dt) {
   }
 
   // Combo timer
+  if (hyperLoopT > 0) hyperLoopT -= dt;
   comboT -= dt;
   if (comboT <= 0 && combo > 0) {
     combo = 0;
@@ -1856,7 +1859,7 @@ function updatePlay(dt) {
         }
         if (poly.length >= 3) {
           const area = polyArea(poly);
-          const threshold = resonance ? minArea * 0.55 : minArea;
+          const threshold = (resonance || hyperLoopT > 0) ? minArea * 0.55 : minArea;
           if (area > threshold) {
             closeLoop(poly, area, inter, i);
           }
@@ -1900,6 +1903,7 @@ function collectOrb(o) {
 // Loops with no stars inside have no effect beyond the thread truncating — silent failure.
 // This makes looping a deliberate, situational gesture: the answer to enemy density.
 function closeLoop(poly, area, inter, segIdx) {
+  const hyper = hyperLoopT > 0;   // was a cascade window open as this loop closed?
   // Pre-scan: collect only star (blade) objects inside the polygon
   const capturedStars = [];
   for (const o of objects) {
@@ -1934,6 +1938,7 @@ function closeLoop(poly, area, inter, segIdx) {
   for (const o of capturedStars) {
     let value = 120;
     if (resonance) value = Math.floor(value * 2);
+    if (hyper) value = Math.floor(value * 1.35);   // hyper-loop cascade bonus
 
     // Initial velocity: gentle drift outward (settle phase prevents this from dominating)
     const launchAngle = Math.atan2(o.y - cy, o.x - cx) + rand(-0.3, 0.3);
@@ -1966,7 +1971,7 @@ function closeLoop(poly, area, inter, segIdx) {
   let labelText;
   if (captured > 1) labelText = '★ CAPTURED × ' + captured;
   else labelText = '★ CAPTURED';
-  popup(cx, cy, labelText, '#ffffff');
+  popup(cx, cy, labelText, hyper ? '#fff3c8' : '#ffffff');
 
   // Sound + haptic
   sfxLoop(cy / H, captured, resonance);
@@ -1984,6 +1989,16 @@ function closeLoop(poly, area, inter, segIdx) {
   glow = 1;
   shake = Math.max(shake, 6);
   totalLoops++;
+
+  // A 3+ capture opens the hyper-loop window: for a short time loops are easier
+  // to close and trophies pay more — chaining in a dense field escalates into a
+  // virtuosic, self-reinforcing run.
+  if (captured >= 3) {
+    hyperLoopT = 2.0;
+    popup(cx, cy - 24 * SCALE, 'HYPER-LOOP', '#ffe7a0');
+    loopFlashes.push({ poly: poly.map(p => ({ x: p.x, y: p.y })), life: 1.0, maxLife: 1.0, captured, isResonance: true });
+    shake = Math.max(shake, 10);
+  }
 }
 
 // COLLECT A TROPHY: chain note + small burst + combo bump

@@ -995,6 +995,8 @@ let resonanceT = 0;
 const RESONANCE_DUR = 6.5;
 let resonanceSweep = null;  // one-shot outward capture wave at resonance start
 let resonanceCharge = 0;
+let chargeHalf = false;     // audio-tick latches for the charge meter milestones
+let chargeNear = false;
 
 const RIPE_RATE_MIN = 0.09;
 const RIPE_RATE_MAX = 0.30;
@@ -1212,6 +1214,25 @@ function addResonanceCharge(o, x, y) {
   if (rip > 0.58) {
     wave(x, y, 50, 10, 34 + rip * 38, 0.34);
     burst(x, y, 50, 4 + Math.floor(rip * 8), 110 + rip * 150, 0.45);
+    // A few gold sparks spiral toward the head — charge visibly flows to you.
+    for (let i = 0; i < 3; i++) {
+      const a = Math.atan2(head.y - y, head.x - x) + rand(-0.5, 0.5);
+      const s = rand(70, 150);
+      particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 0.5, maxLife: 0.5, r: 1.6 * SCALE, hue: 50, sat: 100, lit: 82 });
+    }
+  }
+
+  // Audible milestones as the meter fills — turns a hidden variable into a goal.
+  if (!chargeHalf && resonanceCharge >= 0.5) {
+    chargeHalf = true;
+    tone(SCALE_NOTES[7], 0.3, 'sine', 0.07);
+    tone(SCALE_NOTES[9], 0.3, 'sine', 0.04, 0.04);
+  }
+  if (!chargeNear && resonanceCharge >= 0.85) {
+    chargeNear = true;
+    tone(SCALE_NOTES[9], 0.34, 'sine', 0.08);
+    tone(SCALE_NOTES[11], 0.34, 'sine', 0.05, 0.05);
   }
 
   if (resonanceCharge >= 1) beginResonance();
@@ -1223,6 +1244,8 @@ function beginResonance() {
   resonance = true;
   resonanceT = RESONANCE_DUR;
   resonanceCharge = 0;
+  chargeHalf = false;
+  chargeNear = false;
 
   $resonance.classList.remove('hidden');
   // Force reflow then animate in
@@ -1371,6 +1394,8 @@ function startGame() {
   resonanceT = 0;
   resonanceSweep = null;
   resonanceCharge = 0;
+  chargeHalf = false;
+  chargeNear = false;
   dronePitchCurrent = 0;
   wireDist = 0; wireNextAt = 60; wireSparkGap = 0;
   $resonance.classList.add('hidden');
@@ -2194,6 +2219,26 @@ function renderGame() {
       grd.addColorStop(1, `hsla(${hue}, 100%, 60%, 0)`);
       ctx.fillStyle = grd;
       ctx.fillRect(head.x - 30 * SCALE, head.y - 30 * SCALE, 60 * SCALE, 60 * SCALE);
+
+      // Resonance charge meter — a gold arc filling around the head as risky,
+      // late, ripe catches build toward the wave. Surfaces the game's hidden
+      // engine so the greed-and-anticipation loop becomes something to chase.
+      if (!resonance && resonanceCharge > 0.02) {
+        const cR = 30 * SCALE;
+        const near = clamp((resonanceCharge - 0.7) / 0.3, 0, 1);
+        const pulse = 0.7 + Math.sin(stateT * (5 + near * 10)) * (0.18 + near * 0.22);
+        ctx.strokeStyle = 'rgba(255, 215, 107, 0.10)';
+        ctx.lineWidth = 2.2 * SCALE;
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, cR, 0, 6.283);
+        ctx.stroke();
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = `hsla(50, 100%, ${72 + near * 20}%, ${(0.34 + resonanceCharge * 0.5) * pulse})`;
+        ctx.lineWidth = (2.2 + near * 2.4) * SCALE;
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, cR, -Math.PI / 2, -Math.PI / 2 + 6.283 * resonanceCharge);
+        ctx.stroke();
+      }
     }
   }
 

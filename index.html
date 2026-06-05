@@ -992,7 +992,7 @@ let glow = 0;              // 0..1 short-lived collection glow
 let invuln = 0;            // start-of-run grace
 
 const LEN_MIN = 12;
-const LEN_MAX = 240;
+const LEN_MAX = 170;       // leaner cap; surplus overflows into score (see addLength)
 const LEN_DECAY = 5.5;        // points/second
 const LEN_GAIN_ORB = 14;
 const LEN_GAIN_RING = 10;
@@ -1046,6 +1046,7 @@ let flashR = 255, flashG = 80, flashB = 120;
 let slowmo = 1;
 let warnT = 0;             // cadence timer for the rising tension alert
 let tensionSlowCool = 0;   // cooldown so near-miss slow-mo can't retrigger every frame
+let lengthWarnT = 0;       // cadence timer for the starvation (low-length) warning
 
 // Background
 for (let i = 0; i < 80; i++) {
@@ -1418,6 +1419,7 @@ function startGame() {
   slowmo = 1;
   warnT = 0;
   tensionSlowCool = 0;
+  lengthWarnT = 0;
   noteIdx = 0;
   totalLoops = 0;
   hyperLoopT = 0;
@@ -1644,6 +1646,21 @@ function updatePlay(dt) {
   if (threadLen < LEN_MIN) {
     endGame('Burned out', 200);
     return;
+  }
+
+  // Starvation warning — an accelerating low pulse as length nears burnout, so
+  // 'Burned out' is always telegraphed (audio + haptic), never a surprise.
+  const lenFill = (threadLen - LEN_MIN) / (LEN_MAX - LEN_MIN);
+  if (lenFill < 0.22) {
+    lengthWarnT -= dt;
+    if (lengthWarnT <= 0) {
+      const d = clamp(lenFill / 0.22, 0, 1);     // 1 entering danger -> 0 at burnout
+      tone(116 + d * 60, 0.09, 'sine', 0.05 + (1 - d) * 0.03);
+      vibrate(3 + Math.floor((1 - d) * 6));
+      lengthWarnT = 0.2 + d * 0.5;                // pulse quickens as you starve
+    }
+  } else {
+    lengthWarnT = 0;
   }
 
   // Tension from curvature over recent thread
@@ -1903,6 +1920,24 @@ function updatePlay(dt) {
   modulateDrone(head.y);
 }
 
+// Add thread length, but once you're at the cap the surplus "overflows" into
+// bonus score (×combo) instead of growing the thread — keeps the thread lean
+// and turns sustained catching at max length into a stream of pure points.
+function addLength(amount, x, y) {
+  const room = Math.max(0, LEN_MAX - threadLen);
+  threadLen = Math.min(LEN_MAX, threadLen + amount);
+  const surplus = amount - room;
+  if (surplus > 0.5) {
+    const mult = 1 + Math.floor(combo / 3);
+    const bonus = Math.round(surplus * 2.5 * mult);
+    if (bonus > 0) {
+      score += bonus;
+      popup(x, y - 22 * SCALE, '+' + bonus, '#ffe7a0');
+      burst(x, y, 50, 4, 130, 0.4);
+    }
+  }
+}
+
 function collectOrb(o) {
   o.consumed = true;
   combo++;
@@ -1914,7 +1949,7 @@ function collectOrb(o) {
   const ripeMult = 1 + Math.pow(rip, 1.35) * 3.2;
   const pts = Math.floor(10 * comboMult * ripeMult);
   score += pts;
-  threadLen = clamp(threadLen + LEN_GAIN_ORB + rip * 5, 0, LEN_MAX);
+  addLength(LEN_GAIN_ORB + rip * 5, o.x, o.y);
   glow = 1.3;                                            // catch "pop" — the head flares
   if (rip > 0.5) shake = Math.max(shake, 2 + rip * 3);   // a little crunch on greedy catches
 
@@ -2041,7 +2076,7 @@ function collectTrophy(t) {
   const mult = 1 + Math.floor(combo / 3);
   const pts = t.value * mult;
   score += pts;
-  threadLen = clamp(threadLen + 8, 0, LEN_MAX);
+  addLength(8, t.x, t.y);
   glow = Math.min(1.4, glow + 0.45);
   slowmo = Math.min(slowmo, 0.9);              // micro time-dilation on arrival
   shake = Math.max(shake, 3);
@@ -2063,7 +2098,7 @@ function passRing(o) {
   const mult = 1 + Math.floor(combo / 3);
   const pts = 35 * mult;
   score += pts;
-  threadLen = clamp(threadLen + LEN_GAIN_RING, 0, LEN_MAX);
+  addLength(LEN_GAIN_RING, o.x, o.y);
   glow = 1;
 
   burst(o.x, o.y, o.hue, 22, 320, 1.0);
@@ -2321,6 +2356,29 @@ function renderGame() {
         ctx.lineWidth = 2 * SCALE;
         ctx.beginPath();
         ctx.arc(head.x, head.y, (10 + rp * 30) * SCALE, 0, 6.283);
+        ctx.stroke();
+      }
+
+      // Thread meter — survival + overflow, drawn on the avatar so length is
+      // never a hidden variable: the ring shrinks and reddens with a pulse as
+      // you near burnout, and glows gold at the cap where catches overflow to score.
+      {
+        const fill = clamp((threadLen - LEN_MIN) / (LEN_MAX - LEN_MIN), 0, 1);
+        const danger = fill < 0.22;
+        const full = fill > 0.985;
+        const mR = 20 * SCALE;
+        const mHue = full ? 48 : (danger ? 0 : 190);
+        const dpulse = danger ? (0.55 + Math.sin(stateT * 16) * 0.45) : 1;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = `hsla(${mHue}, 90%, 60%, 0.10)`;
+        ctx.lineWidth = 2 * SCALE;
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, mR, 0, 6.283);
+        ctx.stroke();
+        ctx.strokeStyle = `hsla(${mHue}, 100%, 72%, ${(danger ? 0.9 : 0.42) * dpulse})`;
+        ctx.lineWidth = (danger || full ? 3 : 2) * SCALE;
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, mR, -Math.PI / 2, -Math.PI / 2 + 6.283 * Math.max(fill, 0.02));
         ctx.stroke();
       }
     }

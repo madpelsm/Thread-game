@@ -1047,6 +1047,7 @@ let slowmo = 1;
 let warnT = 0;             // cadence timer for the rising tension alert
 let tensionSlowCool = 0;   // cooldown so near-miss slow-mo can't retrigger every frame
 let lengthWarnT = 0;       // cadence timer for the starvation (low-length) warning
+let overSnapT = 0;         // time held over the snap threshold before the thread breaks
 
 // Background
 for (let i = 0; i < 80; i++) {
@@ -1420,6 +1421,7 @@ function startGame() {
   warnT = 0;
   tensionSlowCool = 0;
   lengthWarnT = 0;
+  overSnapT = 0;
   noteIdx = 0;
   totalLoops = 0;
   hyperLoopT = 0;
@@ -1684,9 +1686,18 @@ function updatePlay(dt) {
     tension *= Math.pow(0.05, dt);
   }
 
+  // Snap grace: you must hold OVER the threshold briefly before the thread
+  // actually breaks, so a momentary over-curve won't cheap-shot you. With the
+  // rising alert + heartbeat + near-miss slow-mo, the snap is now readable and
+  // reactable instead of an instant, unpredictable death.
   if (tension > TENSION_SNAP) {
-    endGame('Too sharp', 0);
-    return;
+    overSnapT += dt;
+    if (overSnapT > 0.13) {
+      endGame('Too sharp', 0);
+      return;
+    }
+  } else {
+    overSnapT = Math.max(0, overSnapT - dt * 2.4);   // forgiven quickly once you ease off
   }
   // Tension tightrope: continuous feedback that intensifies toward the snap so
   // the edge is felt across audio + touch + time, not signalled by a random chirp.
@@ -2403,14 +2414,20 @@ function renderGame() {
   ctx.textAlign = 'start';
   ctx.textBaseline = 'alphabetic';
 
-  // Tension warning hint
-  if (state === ST.PLAYING) {
-    if (tension > 1.5) {
-      const tA = clamp((tension - 1.5) / (TENSION_SNAP - 1.5), 0, 1);
-      ctx.strokeStyle = `rgba(255, 100, 130, ${tA * 0.6})`;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(2, 2, W - 4, H - 4);
-    }
+  // Tension warning — a red edge that grows from a faint hint into an
+  // unmistakable, pulsing danger vignette as the curve nears the snap, so
+  // 'Too sharp' is always foreseen rather than sudden.
+  if (state === ST.PLAYING && tension > 1.4) {
+    const tA = clamp((tension - 1.4) / (TENSION_SNAP - 1.4), 0, 1);
+    const pulse = 0.65 + Math.sin(stateT * (6 + tA * 16)) * 0.35 * tA;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.72);
+    vg.addColorStop(0, 'rgba(255, 60, 100, 0)');
+    vg.addColorStop(1, `rgba(255, 60, 100, ${tA * 0.32 * pulse})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = `rgba(255, 120, 150, ${tA * 0.6 * pulse})`;
+    ctx.lineWidth = (1 + tA * 3) * SCALE;
+    ctx.strokeRect(2, 2, W - 4, H - 4);
   }
 }
 

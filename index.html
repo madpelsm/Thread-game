@@ -987,6 +987,7 @@ let velocity = 0;
 let threadLen = 60;        // current max length (in points)
 let tension = 0;
 let releaseTime = 0;
+let releaseTickT = 0;      // cadence timer for the finger-lift warning tick
 let glow = 0;              // 0..1 short-lived collection glow
 let invuln = 0;            // start-of-run grace
 
@@ -1393,6 +1394,7 @@ function startGame() {
   tension = 0;
   velocity = 0;
   releaseTime = 0;
+  releaseTickT = 0;
   glow = 0;
   invuln = 1.0;
 
@@ -1597,15 +1599,23 @@ function updatePlay(dt) {
   runTime += sdt;
   invuln = Math.max(0, invuln - dt);
 
-  // Finger release handling
+  // Finger release handling — a soft, quickening tick fills the silence the
+  // sparkle leaves behind, teaching the 0.4s "hold to live" contract wordlessly.
   if (!down) {
     releaseTime += dt;
+    releaseTickT -= dt;
+    if (releaseTickT <= 0) {
+      const rp = clamp(releaseTime / 0.4, 0, 1);
+      tone(460 + rp * 220, 0.05, 'sine', 0.05);
+      releaseTickT = 0.13 - rp * 0.08;          // ticks accelerate toward the snap
+    }
     if (releaseTime > 0.4) {
       endGame('Released', 200);
       return;
     }
   } else {
     releaseTime = 0;
+    releaseTickT = 0;
   }
 
   // Spring head toward pointer (when finger is down)
@@ -2299,6 +2309,18 @@ function renderGame() {
         ctx.lineWidth = (2.2 + near * 2.4) * SCALE;
         ctx.beginPath();
         ctx.arc(head.x, head.y, cR, -Math.PI / 2, -Math.PI / 2 + 6.283 * resonanceCharge);
+        ctx.stroke();
+      }
+
+      // Release countdown — when the finger lifts, a ring shrinks toward the
+      // head over 0.4s, making the one-finger "hold to live" rule legible so
+      // 'Released' deaths feel learnable instead of mysterious.
+      if (!down && releaseTime > 0.01) {
+        const rp = clamp(1 - releaseTime / 0.4, 0, 1);  // 1 -> 0 over 0.4s
+        ctx.strokeStyle = `hsla(200, 100%, 75%, ${0.2 + rp * 0.55})`;
+        ctx.lineWidth = 2 * SCALE;
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, (10 + rp * 30) * SCALE, 0, 6.283);
         ctx.stroke();
       }
     }
